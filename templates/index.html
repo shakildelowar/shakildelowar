@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Aggregator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e1e4e8;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #8b949e;
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+
+    /* Add Wallet Section */
+    .add-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .add-section h2 {
+      font-size: 1rem;
+      margin-bottom: 16px;
+      color: #c9d1d9;
+    }
+
+    .add-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .add-form input, .add-form select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e1e4e8;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .add-form input:focus, .add-form select:focus {
+      border-color: #58a6ff;
+    }
+
+    .add-form input[name="label"] { width: 160px; }
+    .add-form input[name="address"] { flex: 1; min-width: 280px; font-family: monospace; }
+    .add-form select { width: 120px; }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-danger { background: #da3633; color: #fff; font-size: 0.8rem; padding: 6px 12px; }
+    .btn-blue { background: #1f6feb; color: #fff; }
+
+    /* Wallet List */
+    .wallets-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #30363d;
+    }
+
+    .section-header h2 {
+      font-size: 1rem;
+      color: #c9d1d9;
+    }
+
+    .wallet-row {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid #21262d;
+      transition: background 0.15s;
+    }
+
+    .wallet-row:last-child { border-bottom: none; }
+    .wallet-row:hover { background: #1c2128; }
+
+    .wallet-info { flex: 1; min-width: 0; }
+
+    .wallet-label {
+      font-weight: 500;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .wallet-address {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #8b949e;
+      word-break: break-all;
+    }
+
+    .wallet-type {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      margin-right: 12px;
+      text-transform: uppercase;
+    }
+
+    .type-evm { background: #1c3a5f; color: #58a6ff; }
+    .type-solana { background: #2a1f4e; color: #bc8cff; }
+
+    .wallet-balance {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-right: 16px;
+      min-width: 120px;
+      text-align: right;
+    }
+
+    .wallet-balance.loading { color: #8b949e; font-size: 0.85rem; }
+    .wallet-balance.error { color: #f85149; font-size: 0.85rem; }
+
+    .wallet-link {
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.75rem;
+      margin-top: 2px;
+      display: inline-block;
+    }
+
+    .wallet-link:hover { text-decoration: underline; }
+
+    /* Total */
+    .total-bar {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .total-label { color: #8b949e; font-size: 0.9rem; }
+    .total-value { font-size: 1.8rem; font-weight: 700; color: #3fb950; }
+
+    /* Snapshots */
+    .snapshot-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid #21262d;
+      font-size: 0.9rem;
+    }
+
+    .snapshot-row:last-child { border-bottom: none; }
+    .snapshot-date { color: #8b949e; }
+    .snapshot-value { font-weight: 500; }
+
+    .empty-state {
+      padding: 40px 20px;
+      text-align: center;
+      color: #484f58;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      z-index: 1000;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: #238636; color: #fff; }
+    .toast.error { background: #da3633; color: #fff; }
+
+    /* Actions row */
+    .actions { display: flex; gap: 10px; margin-bottom: 24px; }
+
+    @media (max-width: 600px) {
+      .add-form { flex-direction: column; }
+      .add-form input, .add-form select { width: 100% !important; min-width: auto !important; }
+      .wallet-balance { min-width: auto; margin-right: 8px; }
+      .total-value { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Portfolio Aggregator</h1>
+    <p class="subtitle">DeBank (EVM) + Jupiter (Solana) - Monthly balance snapshots</p>
+
+    <!-- Add Wallet -->
+    <div class="add-section">
+      <h2>Add Wallet</h2>
+      <form class="add-form" id="addForm">
+        <input type="text" name="label" placeholder="Label (e.g. Main ETH)" required>
+        <input type="text" name="address" placeholder="Paste wallet address..." required>
+        <select name="type" required>
+          <option value="evm">EVM (DeBank)</option>
+          <option value="solana">Solana (Jupiter)</option>
+        </select>
+        <button type="submit" class="btn btn-primary" id="addBtn">Add</button>
+      </form>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button class="btn btn-blue" onclick="fetchBalances()" id="fetchBtn">Fetch Balances</button>
+      <button class="btn btn-primary" onclick="takeSnapshot()" id="snapBtn">Take Snapshot</button>
+    </div>
+
+    <!-- Total -->
+    <div class="total-bar" id="totalBar" style="display:none;">
+      <span class="total-label">Total Portfolio Value</span>
+      <span class="total-value" id="totalValue">$0.00</span>
+    </div>
+
+    <!-- Wallets -->
+    <div class="wallets-section">
+      <div class="section-header">
+        <h2>Wallets</h2>
+        <span id="walletCount" style="color:#8b949e;font-size:0.85rem;"></span>
+      </div>
+      <div id="walletList">
+        <div class="empty-state">Loading wallets...</div>
+      </div>
+    </div>
+
+    <!-- Snapshots -->
+    <div class="wallets-section">
+      <div class="section-header">
+        <h2>Monthly History</h2>
+      </div>
+      <div id="snapshotList">
+        <div class="empty-state">No snapshots yet</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API = '';
+
+    function toast(msg, type = 'success') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `toast ${type} show`;
+      setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    function formatUSD(val) {
+      if (val == null) return '--';
+      return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function debankURL(addr) { return `https://debank.com/profile/${addr}`; }
+    function jupiterURL(addr) { return `https://jup.ag/portfolio/${addr}`; }
+
+    // Load wallets
+    async function loadWallets() {
+      try {
+        const res = await fetch(`${API}/api/wallets`);
+        const wallets = await res.json();
+        renderWallets(wallets);
+      } catch (e) {
+        document.getElementById('walletList').innerHTML = '<div class="empty-state">Failed to load wallets</div>';
+      }
+    }
+
+    function renderWallets(wallets, balances = null) {
+      const container = document.getElementById('walletList');
+      document.getElementById('walletCount').textContent = `${wallets.length} wallet${wallets.length !== 1 ? 's' : ''}`;
+
+      if (!wallets.length) {
+        container.innerHTML = '<div class="empty-state">No wallets configured. Add one above.</div>';
+        return;
+      }
+
+      container.innerHTML = wallets.map(w => {
+        const typeClass = w.type === 'evm' ? 'type-evm' : 'type-solana';
+        const url = w.type === 'evm' ? debankURL(w.address) : jupiterURL(w.address);
+
+        let balanceHTML = '';
+        if (balances) {
+          const b = balances.find(b => b.address.toLowerCase() === w.address.toLowerCase());
+          if (b && b.error) {
+            balanceHTML = `<div class="wallet-balance error">Error</div>`;
+          } else if (b) {
+            balanceHTML = `<div class="wallet-balance">${formatUSD(b.usd_value)}</div>`;
+          }
+        }
+
+        return `
+          <div class="wallet-row">
+            <span class="wallet-type ${typeClass}">${w.type}</span>
+            <div class="wallet-info">
+              <div class="wallet-label">${escapeHtml(w.label || w.address)}</div>
+              <div class="wallet-address">${escapeHtml(w.address)}</div>
+              <a class="wallet-link" href="${url}" target="_blank" rel="noopener">View on ${w.type === 'evm' ? 'DeBank' : 'Jupiter'}</a>
+            </div>
+            ${balanceHTML}
+            <button class="btn btn-danger" onclick="removeWallet('${escapeHtml(w.address)}')">Remove</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Add wallet
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        label: form.label.value.trim(),
+        address: form.address.value.trim(),
+        type: form.type.value,
+      };
+
+      if (!data.address) return toast('Paste a wallet address', 'error');
+
+      const btn = document.getElementById('addBtn');
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+
+      try {
+        const res = await fetch(`${API}/api/wallets`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await res.json();
+
+        if (res.ok) {
+          toast(`Added ${data.label || data.address}`);
+          form.reset();
+          loadWallets();
+        } else {
+          toast(result.error || 'Failed to add wallet', 'error');
+        }
+      } catch (err) {
+        toast('Network error', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add';
+      }
+    });
+
+    // Remove wallet
+    async function removeWallet(address) {
+      if (!confirm(`Remove wallet ${address}?`)) return;
+
+      try {
+        const res = await fetch(`${API}/api/wallets`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address }),
+        });
+        const result = await res.json();
+
+        if (res.ok) {
+          toast('Wallet removed');
+          loadWallets();
+        } else {
+          toast(result.error || 'Failed to remove', 'error');
+        }
+      } catch (err) {
+        toast('Network error', 'error');
+      }
+    }
+
+    // Fetch balances
+    let lastWallets = [];
+    async function fetchBalances() {
+      const btn = document.getElementById('fetchBtn');
+      btn.disabled = true;
+      btn.textContent = 'Fetching...';
+
+      try {
+        const res = await fetch(`${API}/api/balances`);
+        const data = await res.json();
+
+        if (data.wallets) {
+          lastWallets = data.wallets;
+          // Re-render wallets with balance data
+          const wRes = await fetch(`${API}/api/wallets`);
+          const wallets = await wRes.json();
+          renderWallets(wallets, data.wallets);
+
+          // Show total
+          document.getElementById('totalBar').style.display = 'flex';
+          document.getElementById('totalValue').textContent = formatUSD(data.total_usd);
+
+          if (data.errors && data.errors.length) {
+            toast(`Fetched with ${data.errors.length} error(s)`, 'error');
+          } else {
+            toast('Balances updated');
+          }
+        }
+      } catch (err) {
+        toast('Failed to fetch balances', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Fetch Balances';
+      }
+    }
+
+    // Take snapshot
+    async function takeSnapshot() {
+      const btn = document.getElementById('snapBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const res = await fetch(`${API}/api/snapshot`, { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok) {
+          toast(`Snapshot saved: ${data.file}`);
+          // Update balances display
+          if (data.data && data.data.wallets) {
+            const wRes = await fetch(`${API}/api/wallets`);
+            const wallets = await wRes.json();
+            renderWallets(wallets, data.data.wallets);
+            document.getElementById('totalBar').style.display = 'flex';
+            document.getElementById('totalValue').textContent = formatUSD(data.data.total_usd);
+          }
+          loadSnapshots();
+        } else {
+          toast(data.error || 'Failed', 'error');
+        }
+      } catch (err) {
+        toast('Network error', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Take Snapshot';
+      }
+    }
+
+    // Load snapshots
+    async function loadSnapshots() {
+      try {
+        const res = await fetch(`${API}/api/snapshots`);
+        const snapshots = await res.json();
+        const container = document.getElementById('snapshotList');
+
+        if (!snapshots.length) {
+          container.innerHTML = '<div class="empty-state">No snapshots yet. Click "Take Snapshot" to save one.</div>';
+          return;
+        }
+
+        container.innerHTML = snapshots.reverse().map(s => `
+          <div class="snapshot-row">
+            <span class="snapshot-date">${new Date(s.timestamp).toLocaleString()}</span>
+            <span class="snapshot-value">${formatUSD(s.total_usd)}</span>
+          </div>
+        `).join('');
+      } catch (e) {
+        // silent
+      }
+    }
+
+    // Init
+    loadWallets();
+    loadSnapshots();
+  </script>
+</body>
+</html>
