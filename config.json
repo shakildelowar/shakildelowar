@@ -1,0 +1,16 @@
+{
+  "wallets": [
+    {
+      "label": "Main EVM Wallet",
+      "address": "0xYOUR_EVM_ADDRESS_HERE",
+      "type": "evm"
+    },
+    {
+      "label": "Main Solana Wallet",
+      "address": "YOUR_SOLANA_ADDRESS_HERE",
+      "type": "solana"
+    }
+  ],
+  "snapshot_dir": "snapshots",
+  "timezone": "UTC"
+}
