@@ -3,13 +3,32 @@
 import requests
 from urllib.parse import urlparse
 
-SOLANA_RPC = "https://api.mainnet-beta.solana.com"
+SOLANA_RPCS = [
+    "https://api.mainnet-beta.solana.com",
+    "https://solana-rpc.publicnode.com",
+    "https://rpc.ankr.com/solana",
+]
 JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
 COINGECKO_SOL_PRICE = "https://api.coingecko.com/api/v3/simple/price"
 SOL_MINT = "So11111111111111111111111111111111111111112"
 LAMPORTS_PER_SOL = 1_000_000_000
 
 DEBANK_API = "https://api.debank.com/user/total_balance"
+
+
+def _rpc_call(payload: dict, timeout: int = 15) -> dict | None:
+    """Try multiple Solana RPC endpoints, return first successful response."""
+    for rpc in SOLANA_RPCS:
+        try:
+            resp = requests.post(rpc, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            if "error" not in data:
+                return data
+            print(f"[RPC] {rpc} returned error: {data.get('error')}")
+        except Exception as e:
+            print(f"[RPC] {rpc} failed: {e}")
+    return None
 
 
 def extract_address_from_url(url: str) -> tuple[str, str]:
@@ -31,49 +50,47 @@ def extract_address_from_url(url: str) -> tuple[str, str]:
 
 
 def _sol_balance(address: str) -> float | None:
-    try:
-        resp = requests.post(SOLANA_RPC, json={
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getBalance",
-            "params": [address],
-        }, timeout=15)
-        resp.raise_for_status()
-        lamports = resp.json().get("result", {}).get("value", 0)
+    data = _rpc_call({
+        "jsonrpc": "2.0", "id": 1,
+        "method": "getBalance",
+        "params": [address],
+    })
+    if data:
+        lamports = data.get("result", {}).get("value", 0)
         return lamports / LAMPORTS_PER_SOL
-    except Exception:
-        return None
+    return None
 
 
 def _spl_tokens(address: str) -> list[dict]:
     """Get ALL SPL token accounts including Token-2022."""
     tokens = []
 
-    # Standard SPL Token program
     for program_id in [
         "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
         "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022
     ]:
-        try:
-            resp = requests.post(SOLANA_RPC, json={
-                "jsonrpc": "2.0", "id": 1,
-                "method": "getTokenAccountsByOwner",
-                "params": [
-                    address,
-                    {"programId": program_id},
-                    {"encoding": "jsonParsed"},
-                ],
-            }, timeout=15)
-            resp.raise_for_status()
-            accounts = resp.json().get("result", {}).get("value", [])
+        data = _rpc_call({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getTokenAccountsByOwner",
+            "params": [
+                address,
+                {"programId": program_id},
+                {"encoding": "jsonParsed"},
+            ],
+        })
+        if data:
+            accounts = data.get("result", {}).get("value", [])
+            print(f"[Tokens] {program_id[:8]}... returned {len(accounts)} account(s)")
             for acct in accounts:
                 info = acct["account"]["data"]["parsed"]["info"]
                 mint = info.get("mint", "")
                 ui_amount = info.get("tokenAmount", {}).get("uiAmount", 0)
                 if ui_amount and ui_amount > 0:
                     tokens.append({"mint": mint, "amount": ui_amount})
-        except Exception:
-            pass
+        else:
+            print(f"[Tokens] {program_id[:8]}... ALL RPCs failed")
 
+    print(f"[Tokens] Total tokens with balance: {len(tokens)}")
     return tokens
 
 
