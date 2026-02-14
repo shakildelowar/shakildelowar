@@ -412,52 +412,68 @@ def fetch_solana_balance(address: str) -> dict:
 
 
 def fetch_evm_balance(address: str) -> dict:
-    """Fetch EVM wallet balance from DeBank."""
+    """Fetch EVM wallet balance from DeBank with retry."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                        "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
         "Accept": "application/json",
         "Referer": f"https://debank.com/profile/{address}",
     }
-    try:
-        resp = requests.get(
-            DEBANK_API,
-            params={"addr": address.lower()},
-            headers=headers,
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json().get("data", {})
 
-        total = data.get("total_usd_value", 0.0)
-        chains = []
-        for chain in data.get("chain_list", []):
-            usd = chain.get("usd_value", 0)
-            if usd > 0.01:
-                chains.append({
-                    "id": chain.get("community_id") or chain.get("id", "?"),
-                    "name": chain.get("name", "Unknown"),
-                    "usd": usd,
-                    "logo": chain.get("logo_url", ""),
-                })
+    last_error = None
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                time.sleep(2 * attempt)  # 2s, 4s backoff
+                print(f"[DeBank] Retry {attempt + 1} for {address[:10]}...")
 
-        chains.sort(key=lambda x: x["usd"], reverse=True)
+            resp = requests.get(
+                DEBANK_API,
+                params={"addr": address.lower()},
+                headers=headers,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", {})
 
-        return {
-            "address": address,
-            "type": "evm",
-            "chains": chains,
-            "total_usd": total,
-            "error": None,
-        }
-    except Exception as e:
-        return {
-            "address": address,
-            "type": "evm",
-            "chains": [],
-            "total_usd": 0,
-            "error": str(e),
-        }
+            total = data.get("total_usd_value", 0.0)
+            chains = []
+            for chain in data.get("chain_list", []):
+                usd = chain.get("usd_value", 0)
+                if usd > 0.01:
+                    chains.append({
+                        "id": chain.get("community_id") or chain.get("id", "?"),
+                        "name": chain.get("name", "Unknown"),
+                        "usd": usd,
+                        "logo": chain.get("logo_url", ""),
+                    })
+
+            chains.sort(key=lambda x: x["usd"], reverse=True)
+
+            return {
+                "address": address,
+                "type": "evm",
+                "chains": chains,
+                "total_usd": total,
+                "error": None,
+            }
+        except requests.exceptions.HTTPError as e:
+            last_error = e
+            if e.response is not None and e.response.status_code == 429:
+                print(f"[DeBank] Rate limited (429), will retry...")
+                continue
+            break
+        except Exception as e:
+            last_error = e
+            break
+
+    return {
+        "address": address,
+        "type": "evm",
+        "chains": [],
+        "total_usd": 0,
+        "error": "DeBank API rate limited. Try again in a minute.",
+    }
 
 
 def fetch_balance_for_url(url: str) -> dict:
