@@ -21,7 +21,10 @@ def take_screenshot(url: str, output_path: str, wait_seconds: int = 8) -> str:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox"],
+        )
         page = browser.new_page(viewport={"width": 1440, "height": 900})
         page.goto(url, wait_until="networkidle", timeout=60000)
         # Extra wait for JS-heavy portfolio pages to finish rendering
