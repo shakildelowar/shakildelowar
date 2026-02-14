@@ -131,7 +131,17 @@ def extract_address_from_url(url: str) -> tuple[str, str]:
     return "", "unknown"
 
 
+SOLSCAN_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                   "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Origin": "https://solscan.io",
+}
+
+
 def _sol_balance(address: str) -> float | None:
+    """Get SOL balance via RPC, with Solscan REST fallback."""
+    # Strategy 1: Solana RPC
     data = _rpc_call({
         "jsonrpc": "2.0", "id": 1,
         "method": "getBalance",
@@ -139,7 +149,30 @@ def _sol_balance(address: str) -> float | None:
     })
     if data:
         lamports = data.get("result", {}).get("value", 0)
-        return lamports / LAMPORTS_PER_SOL
+        if lamports > 0:
+            return lamports / LAMPORTS_PER_SOL
+
+    # Strategy 2: Solscan account API (different infrastructure)
+    try:
+        resp = requests.get(
+            f"https://api-v2.solscan.io/v2/account?address={address}",
+            headers=SOLSCAN_HEADERS,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        account_data = resp.json()
+        sol_lamports = account_data.get("data", {}).get("lamports", 0)
+        if sol_lamports:
+            balance = sol_lamports / LAMPORTS_PER_SOL
+            print(f"[Solscan] SOL balance: {balance}")
+            return balance
+    except Exception as e:
+        print(f"[Solscan] Account balance failed: {e}")
+
+    # If RPC returned 0 lamports (might be real 0 balance), return that
+    if data:
+        return 0
+
     return None
 
 
@@ -207,12 +240,7 @@ def _spl_tokens_by_mint(address: str) -> list[dict]:
 def _spl_tokens_via_solscan(address: str) -> list[dict]:
     """Fallback: use Solscan V2 API (REST, no RPC needed)."""
     tokens = []
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Origin": "https://solscan.io",
-    }
+    headers = SOLSCAN_HEADERS
     try:
         resp = requests.get(
             f"https://api-v2.solscan.io/v2/account/token-accounts",
@@ -264,16 +292,16 @@ def _spl_tokens_via_solscan(address: str) -> list[dict]:
 
 def _spl_tokens(address: str) -> list[dict]:
     """Get SPL token accounts. Tries multiple strategies."""
-    # Strategy 1: Full program scan via RPC
-    tokens = _spl_tokens_via_program(address)
-    if tokens:
-        print(f"[Tokens] Got {len(tokens)} from RPC program scan")
-        return tokens
-
-    # Strategy 2: Solscan REST API (no RPC needed, different rate limits)
+    # Strategy 1: Solscan REST API (most reliable from cloud IPs)
     tokens = _spl_tokens_via_solscan(address)
     if tokens:
         print(f"[Tokens] Got {len(tokens)} from Solscan API")
+        return tokens
+
+    # Strategy 2: Full program scan via RPC
+    tokens = _spl_tokens_via_program(address)
+    if tokens:
+        print(f"[Tokens] Got {len(tokens)} from RPC program scan")
         return tokens
 
     # Strategy 3: Query known mints individually via RPC
