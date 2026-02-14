@@ -5,10 +5,12 @@ import requests
 from urllib.parse import urlparse
 
 SOLANA_RPCS = [
-    "https://api.mainnet-beta.solana.com",
     "https://solana-rpc.publicnode.com",
     "https://rpc.ankr.com/solana",
     "https://solana.drpc.org",
+    "https://solana-mainnet.rpc.extrnode.com",
+    "https://rpc.solana.gateway.fm",
+    "https://api.mainnet-beta.solana.com",
 ]
 
 # Well-known token registry: mint -> {symbol, name, stable_price}
@@ -99,17 +101,22 @@ HOLDINGS_THRESHOLD = 1.00
 
 
 def _rpc_call(payload: dict, timeout: int = 15) -> dict | None:
-    """Try multiple Solana RPC endpoints, return first successful response."""
-    for rpc in SOLANA_RPCS:
-        try:
-            resp = requests.post(rpc, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data = resp.json()
-            if "error" not in data:
-                return data
-            print(f"[RPC] {rpc} returned error: {data.get('error')}")
-        except Exception as e:
-            print(f"[RPC] {rpc} failed: {e}")
+    """Try multiple Solana RPC endpoints with retry, return first successful response."""
+    # Try each RPC twice with a small delay between rounds
+    for attempt in range(2):
+        for rpc in SOLANA_RPCS:
+            try:
+                resp = requests.post(rpc, json=payload, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+                if "error" not in data:
+                    return data
+                print(f"[RPC] {rpc} returned error: {data.get('error')}")
+            except Exception as e:
+                print(f"[RPC] {rpc} failed: {e}")
+        if attempt == 0:
+            print("[RPC] All endpoints failed, retrying after delay...")
+            time.sleep(1.5)
     return None
 
 
@@ -140,7 +147,7 @@ SOLSCAN_HEADERS = {
 
 
 def _sol_balance(address: str) -> float | None:
-    """Get SOL balance via RPC, with Solscan REST fallback."""
+    """Get SOL balance via RPC, with Solscan and Solana FM REST fallbacks."""
     # Strategy 1: Solana RPC
     data = _rpc_call({
         "jsonrpc": "2.0", "id": 1,
@@ -150,6 +157,7 @@ def _sol_balance(address: str) -> float | None:
     if data:
         lamports = data.get("result", {}).get("value", 0)
         if lamports > 0:
+            print(f"[RPC] SOL balance: {lamports / LAMPORTS_PER_SOL}")
             return lamports / LAMPORTS_PER_SOL
 
     # Strategy 2: Solscan account API (different infrastructure)
@@ -161,13 +169,53 @@ def _sol_balance(address: str) -> float | None:
         )
         resp.raise_for_status()
         account_data = resp.json()
-        sol_lamports = account_data.get("data", {}).get("lamports", 0)
+        # Try multiple possible response structures
+        d = account_data.get("data", account_data)
+        sol_lamports = d.get("lamports", 0)
+        if not sol_lamports:
+            sol_lamports = d.get("balance", 0)
         if sol_lamports:
-            balance = sol_lamports / LAMPORTS_PER_SOL
+            balance = int(sol_lamports) / LAMPORTS_PER_SOL
             print(f"[Solscan] SOL balance: {balance}")
             return balance
     except Exception as e:
         print(f"[Solscan] Account balance failed: {e}")
+
+    # Strategy 3: Solana FM API
+    try:
+        resp = requests.get(
+            f"https://api.solana.fm/v1/addresses/{address}/balance",
+            timeout=15,
+            headers={"Accept": "application/json"},
+        )
+        resp.raise_for_status()
+        fm_data = resp.json()
+        sol_lamports = fm_data.get("result", {}).get("balance", 0)
+        if not sol_lamports:
+            sol_lamports = fm_data.get("balance", 0)
+        if sol_lamports:
+            balance = int(sol_lamports) / LAMPORTS_PER_SOL
+            print(f"[SolanaFM] SOL balance: {balance}")
+            return balance
+    except Exception as e:
+        print(f"[SolanaFM] Balance failed: {e}")
+
+    # Strategy 4: Ankr Solana RPC (separate from multichain)
+    try:
+        resp = requests.post("https://rpc.ankr.com/solana", json={
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getBalance",
+            "params": [address],
+        }, timeout=15)
+        resp.raise_for_status()
+        ankr_data = resp.json()
+        if "error" not in ankr_data:
+            lamports = ankr_data.get("result", {}).get("value", 0)
+            if lamports > 0:
+                print(f"[Ankr-Solana] SOL balance: {lamports / LAMPORTS_PER_SOL}")
+                return lamports / LAMPORTS_PER_SOL
+    except Exception as e:
+        print(f"[Ankr-Solana] Balance failed: {e}")
 
     # If RPC returned 0 lamports (might be real 0 balance), return that
     if data:
@@ -238,54 +286,64 @@ def _spl_tokens_by_mint(address: str) -> list[dict]:
 
 
 def _spl_tokens_via_solscan(address: str) -> list[dict]:
-    """Fallback: use Solscan V2 API (REST, no RPC needed)."""
+    """Use Solscan V2 REST API for token balances (no RPC needed)."""
     tokens = []
-    headers = SOLSCAN_HEADERS
+
+    # New Solscan V2 endpoint: /v2/account/tokens
     try:
         resp = requests.get(
-            f"https://api-v2.solscan.io/v2/account/token-accounts",
-            params={"address": address, "type": "token", "page": 1, "page_size": 40},
-            headers=headers,
+            f"https://api-v2.solscan.io/v2/account/tokens",
+            params={"address": address},
+            headers=SOLSCAN_HEADERS,
             timeout=15,
         )
         resp.raise_for_status()
         data = resp.json()
-        items = data.get("data", {}).get("token_accounts", []) if isinstance(data.get("data"), dict) else data.get("data", [])
+        items = data.get("data", {}).get("tokens", [])
+        if not items and isinstance(data.get("data"), list):
+            items = data.get("data", [])
+
         for item in items:
-            amount = item.get("amount", 0)
-            decimals = item.get("token_decimals", 0)
-            mint = item.get("token_address", "")
-            if amount and decimals and mint:
-                ui_amount = amount / (10 ** decimals)
-                if ui_amount > 0:
-                    tokens.append({"mint": mint, "amount": ui_amount})
+            mint = item.get("tokenAddress", "")
+            balance = item.get("balance", 0)
+            decimals = item.get("decimals", 0)
+            amount_raw = item.get("amount", 0)
+
+            # Prefer pre-calculated balance, fallback to raw amount
+            ui_amount = float(balance) if balance else 0
+            if not ui_amount and amount_raw and decimals:
+                ui_amount = int(amount_raw) / (10 ** int(decimals))
+
+            if ui_amount > 0 and mint:
+                tokens.append({"mint": mint, "amount": ui_amount})
+
         print(f"[Solscan] Returned {len(tokens)} token(s)")
     except Exception as e:
         print(f"[Solscan] Failed: {e}")
 
-    # Also try Token-2022 accounts
-    try:
-        resp = requests.get(
-            f"https://api-v2.solscan.io/v2/account/token-accounts",
-            params={"address": address, "type": "token", "page": 1, "page_size": 40,
-                    "token_type": "token2022"},
-            headers=headers,
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        items = data.get("data", {}).get("token_accounts", []) if isinstance(data.get("data"), dict) else data.get("data", [])
-        for item in items:
-            amount = item.get("amount", 0)
-            decimals = item.get("token_decimals", 0)
-            mint = item.get("token_address", "")
-            if amount and decimals and mint:
-                ui_amount = amount / (10 ** decimals)
-                if ui_amount > 0:
-                    tokens.append({"mint": mint, "amount": ui_amount})
-        print(f"[Solscan Token-2022] Returned {len(tokens)} total token(s)")
-    except Exception as e:
-        print(f"[Solscan Token-2022] Failed: {e}")
+    # Fallback: old endpoint format (token-accounts)
+    if not tokens:
+        try:
+            resp = requests.get(
+                f"https://api-v2.solscan.io/v2/account/token-accounts",
+                params={"address": address, "type": "token", "page": 1, "page_size": 40},
+                headers=SOLSCAN_HEADERS,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            items = data.get("data", {}).get("token_accounts", []) if isinstance(data.get("data"), dict) else data.get("data", [])
+            for item in items:
+                amount = item.get("amount", 0)
+                decimals = item.get("token_decimals", 0)
+                mint = item.get("token_address", "")
+                if amount and decimals and mint:
+                    ui_amount = int(amount) / (10 ** int(decimals))
+                    if ui_amount > 0:
+                        tokens.append({"mint": mint, "amount": ui_amount})
+            print(f"[Solscan fallback] Returned {len(tokens)} token(s)")
+        except Exception as e:
+            print(f"[Solscan fallback] Failed: {e}")
 
     return tokens
 
