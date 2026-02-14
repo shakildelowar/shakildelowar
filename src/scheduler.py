@@ -1,4 +1,4 @@
-"""End-of-month scheduler: screenshots + email."""
+"""End-of-month scheduler: screenshots + balance report email."""
 
 import calendar
 import time
@@ -14,19 +14,19 @@ def is_last_day_of_month(dt: datetime) -> bool:
 
 
 def run_monthly_job(config_path: str | None = None) -> None:
-    """Take all screenshots and email them."""
+    """Take all screenshots and email them with balance report."""
     print(f"[{datetime.now(timezone.utc).isoformat()}] Starting monthly snapshot...")
     print("Taking screenshots...")
     results = take_all_screenshots(config_path)
 
     successful = [r for r in results if r.get("path")]
-    if not successful:
-        print("No screenshots were captured. Skipping email.")
-        return
+    print(f"Screenshots captured: {len(successful)}/{len(results)}")
 
-    print(f"\nSending email with {len(successful)} screenshot(s)...")
+    # Send email with screenshots + balance report even if screenshots fail
+    # (balance data is fetched live by the emailer)
+    print("Sending email with screenshots + balance report...")
     try:
-        send_screenshots_email(results, config_path)
+        send_screenshots_email(results, config_path, include_balances=True)
         print("Done.")
     except Exception as e:
         print(f"Email failed: {e}")

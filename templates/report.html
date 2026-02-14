@@ -32,7 +32,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 4px;
       padding-bottom: 12px;
       border-bottom: 1px solid #21262d;
     }
@@ -60,44 +60,42 @@
     .type-solana { background: #2a1f4e; color: #bc8cff; }
     .type-evm { background: #1c3a5f; color: #58a6ff; }
 
+    .token-table-header {
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1fr 1fr;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid #30363d;
+      color: #8b949e;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
     .token-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
+      display: grid;
+      grid-template-columns: 2fr 1.5fr 1fr 1fr;
+      gap: 8px;
+      padding: 10px 0;
       border-bottom: 1px solid #21262d;
+      align-items: center;
     }
     .token-row:last-child { border-bottom: none; }
-    .token-symbol { font-weight: 500; min-width: 80px; }
-    .token-amount { color: #8b949e; font-size: 0.85rem; text-align: right; }
-    .token-usd { font-weight: 500; min-width: 100px; text-align: right; }
-
-    .chain-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #21262d;
-    }
-    .chain-row:last-child { border-bottom: none; }
-    .chain-name { font-weight: 500; }
-    .chain-usd { font-weight: 500; }
-
-    .sol-highlight {
-      background: #1c2128;
-      border-radius: 8px;
-      padding: 12px 16px;
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .sol-highlight .sol-amount { font-size: 1.1rem; font-weight: 600; }
-    .sol-highlight .sol-usd { color: #8b949e; }
+    .token-symbol { font-weight: 600; font-size: 0.9rem; }
+    .token-name { color: #8b949e; font-size: 0.75rem; }
+    .token-balance { text-align: right; color: #c9d1d9; font-size: 0.9rem; }
+    .token-price { text-align: right; color: #8b949e; font-size: 0.85rem; }
+    .token-value { text-align: right; font-weight: 600; font-size: 0.9rem; }
+    .col-right { text-align: right; }
 
     .error-msg {
       color: #f85149;
       font-size: 0.9rem;
       padding: 12px;
+    }
+    .empty-tokens {
+      color: #484f58;
+      font-size: 0.85rem;
+      padding: 8px 0;
     }
   </style>
 </head>
@@ -123,31 +121,54 @@
     {% if wallet.error %}
       <div class="error-msg">Error: {{ wallet.error }}</div>
     {% elif wallet.type == 'solana' %}
+      <div class="token-table-header">
+        <div>Asset</div>
+        <div class="col-right">Balance</div>
+        <div class="col-right">Price</div>
+        <div class="col-right">Value</div>
+      </div>
       {% if wallet.sol_balance is not none %}
-      <div class="sol-highlight">
+      <div class="token-row">
         <div>
-          <div class="sol-amount">{{ "%.4f"|format(wallet.sol_balance) }} SOL</div>
-          <div class="sol-usd">${{ "%.2f"|format(wallet.sol_usd) }}</div>
+          <div class="token-symbol">SOL</div>
+          <div class="token-name">Solana</div>
         </div>
-        <div style="color:#8b949e;font-size:0.8rem;">${{ "%.2f"|format(wallet.sol_price) }}/SOL</div>
+        <div class="token-balance">{{ "%.4f"|format(wallet.sol_balance) }}</div>
+        <div class="token-price">${{ "%.2f"|format(wallet.sol_price) }}</div>
+        <div class="token-value">${{ "%.2f"|format(wallet.sol_usd) }}</div>
       </div>
       {% endif %}
       {% for token in wallet.tokens %}
       <div class="token-row">
-        <div class="token-symbol">{{ token.symbol }}</div>
-        <div class="token-amount">{{ "%.4f"|format(token.amount) }}</div>
-        <div class="token-usd">${{ "%.2f"|format(token.usd) }}</div>
+        <div>
+          <div class="token-symbol">{{ token.symbol }}</div>
+          <div class="token-name">{{ token.name }}</div>
+        </div>
+        <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
+        <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
+        <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
       </div>
       {% endfor %}
-      {% if not wallet.tokens %}
-      <div style="color:#484f58;font-size:0.85rem;padding:8px 0;">No SPL tokens</div>
+      {% if not wallet.tokens and wallet.sol_balance is none %}
+      <div class="empty-tokens">No tokens found</div>
       {% endif %}
 
     {% elif wallet.type == 'evm' %}
+      <div class="token-table-header">
+        <div>Chain</div>
+        <div class="col-right">Balance</div>
+        <div class="col-right">Price</div>
+        <div class="col-right">Value</div>
+      </div>
       {% for chain in wallet.chains %}
-      <div class="chain-row">
-        <div class="chain-name">{{ chain.name }}</div>
-        <div class="chain-usd">${{ "%.2f"|format(chain.usd) }}</div>
+      <div class="token-row">
+        <div>
+          <div class="token-symbol">{{ chain.name }}</div>
+          <div class="token-name">Chain</div>
+        </div>
+        <div class="token-balance">--</div>
+        <div class="token-price">--</div>
+        <div class="token-value">${{ "%.2f"|format(chain.usd) }}</div>
       </div>
       {% endfor %}
     {% endif %}

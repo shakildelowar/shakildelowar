@@ -513,8 +513,42 @@
 
     /* --- Balances --- */
     function formatUSD(val) {
-      if (val == null) return '--';
+      if (val == null || val === 0) return '$0.00';
+      if (val < 0.01 && val > 0) return '<$0.01';
       return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatAmount(val) {
+      if (val == null) return '--';
+      if (val >= 1000000) return Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
+      if (val >= 1) return Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+      if (val >= 0.0001) return Number(val).toFixed(6);
+      return Number(val).toExponential(2);
+    }
+
+    function formatPrice(val) {
+      if (!val) return '--';
+      if (val >= 1) return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (val >= 0.01) return '$' + Number(val).toFixed(4);
+      return '$' + Number(val).toExponential(2);
+    }
+
+    function tokenTable(rows) {
+      let html = '<div style="margin-top:4px;">'
+        + '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #30363d;color:#8b949e;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">'
+        + '<div>Asset</div><div style="text-align:right;">Balance</div><div style="text-align:right;">Price</div><div style="text-align:right;">Value</div></div>';
+      html += rows.join('');
+      html += '</div>';
+      return html;
+    }
+
+    function tokenRow(symbol, name, amount, price, usd) {
+      return '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">'
+        + '<div><div style="font-weight:600;font-size:0.9rem;">' + esc(symbol) + '</div>'
+        + '<div style="color:#8b949e;font-size:0.75rem;">' + esc(name) + '</div></div>'
+        + '<div style="text-align:right;color:#c9d1d9;font-size:0.9rem;">' + formatAmount(amount) + '</div>'
+        + '<div style="text-align:right;color:#8b949e;font-size:0.85rem;">' + formatPrice(price) + '</div>'
+        + '<div style="text-align:right;font-weight:600;font-size:0.9rem;">' + formatUSD(usd) + '</div></div>';
     }
 
     async function fetchBalances() {
@@ -541,33 +575,38 @@
           if (w.error) {
             inner = '<div style="color:#f85149;padding:8px 0;">Error: ' + esc(w.error) + '</div>';
           } else if (w.type === 'solana') {
+            let rows = [];
+            // SOL as first row
             if (w.sol_balance != null) {
-              inner += '<div style="background:#1c2128;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;justify-content:space-between;">'
-                + '<div><strong>' + Number(w.sol_balance).toFixed(4) + ' SOL</strong><br><span style="color:#8b949e;">' + formatUSD(w.sol_usd) + '</span></div>'
-                + '<div style="color:#8b949e;font-size:0.8rem;">' + formatUSD(w.sol_price) + '/SOL</div></div>';
+              rows.push(tokenRow('SOL', 'Solana', w.sol_balance, w.sol_price, w.sol_usd));
             }
+            // SPL tokens
             if (w.tokens && w.tokens.length) {
-              inner += w.tokens.map(t =>
-                '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #21262d;">'
-                + '<span style="font-weight:500;">' + esc(t.symbol) + '</span>'
-                + '<span style="color:#8b949e;font-size:0.85rem;">' + Number(t.amount).toFixed(4) + '</span>'
-                + '<span style="font-weight:500;">' + formatUSD(t.usd) + '</span></div>'
-              ).join('');
+              w.tokens.forEach(t => {
+                rows.push(tokenRow(t.symbol, t.name || '', t.amount, t.price, t.usd));
+              });
+            }
+            if (rows.length) {
+              inner = tokenTable(rows);
+            } else {
+              inner = '<div style="color:#484f58;font-size:0.85rem;padding:8px 0;">No tokens found</div>';
             }
           } else if (w.type === 'evm' && w.chains) {
-            inner += w.chains.map(c =>
-              '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #21262d;">'
-              + '<span style="font-weight:500;">' + esc(c.name) + '</span>'
-              + '<span style="font-weight:500;">' + formatUSD(c.usd) + '</span></div>'
-            ).join('');
+            let rows = [];
+            w.chains.forEach(c => {
+              rows.push(tokenRow(c.name, 'Chain', '--', '--', c.usd));
+            });
+            if (rows.length) {
+              inner = tokenTable(rows);
+            }
           }
 
           return '<div class="card">'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #21262d;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:12px;border-bottom:1px solid #21262d;">'
             + '<div><span class="url-badge ' + typeClass + '">' + typeName + '</span>'
             + '<div style="font-weight:600;margin-top:4px;">' + esc(w.label || '') + '</div>'
             + '<div style="font-family:monospace;font-size:0.75rem;color:#8b949e;">' + esc(w.address || '') + '</div></div>'
-            + '<div style="font-size:1.4rem;font-weight:700;color:#3fb950;">' + formatUSD(w.total_usd) + '</div></div>'
+            + '<div style="font-size:1.5rem;font-weight:700;color:#3fb950;">' + formatUSD(w.total_usd) + '</div></div>'
             + inner + '</div>';
         }).join('');
 

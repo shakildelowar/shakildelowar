@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
+COINGECKO_SOL_PRICE = "https://api.coingecko.com/api/v3/simple/price"
 SOL_MINT = "So11111111111111111111111111111111111111112"
 LAMPORTS_PER_SOL = 1_000_000_000
 
@@ -12,21 +13,16 @@ DEBANK_API = "https://api.debank.com/user/total_balance"
 
 
 def extract_address_from_url(url: str) -> tuple[str, str]:
-    """Extract wallet address and type from a DeBank/Jupiter URL.
-
-    Returns (address, type) where type is 'solana' or 'evm'.
-    """
+    """Extract wallet address and type from a DeBank/Jupiter URL."""
     parsed = urlparse(url)
     host = parsed.hostname or ""
     path = parsed.path.rstrip("/")
 
     if "jup.ag" in host:
-        # https://jup.ag/portfolio/<address>
         parts = path.split("/")
         address = parts[-1] if len(parts) >= 2 else ""
         return address, "solana"
     elif "debank.com" in host:
-        # https://debank.com/profile/<address>
         parts = path.split("/")
         address = parts[-1] if len(parts) >= 2 else ""
         return address, "evm"
@@ -49,46 +45,85 @@ def _sol_balance(address: str) -> float | None:
 
 
 def _spl_tokens(address: str) -> list[dict]:
-    try:
-        resp = requests.post(SOLANA_RPC, json={
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getTokenAccountsByOwner",
-            "params": [
-                address,
-                {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
-                {"encoding": "jsonParsed"},
-            ],
-        }, timeout=15)
-        resp.raise_for_status()
-        accounts = resp.json().get("result", {}).get("value", [])
-        tokens = []
-        for acct in accounts:
-            info = acct["account"]["data"]["parsed"]["info"]
-            mint = info.get("mint", "")
-            ui_amount = info.get("tokenAmount", {}).get("uiAmount", 0)
-            decimals = info.get("tokenAmount", {}).get("decimals", 0)
-            if ui_amount and ui_amount > 0:
-                tokens.append({"mint": mint, "amount": ui_amount, "decimals": decimals})
-        return tokens
-    except Exception:
-        return []
+    """Get ALL SPL token accounts including Token-2022."""
+    tokens = []
+
+    # Standard SPL Token program
+    for program_id in [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022
+    ]:
+        try:
+            resp = requests.post(SOLANA_RPC, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getTokenAccountsByOwner",
+                "params": [
+                    address,
+                    {"programId": program_id},
+                    {"encoding": "jsonParsed"},
+                ],
+            }, timeout=15)
+            resp.raise_for_status()
+            accounts = resp.json().get("result", {}).get("value", [])
+            for acct in accounts:
+                info = acct["account"]["data"]["parsed"]["info"]
+                mint = info.get("mint", "")
+                ui_amount = info.get("tokenAmount", {}).get("uiAmount", 0)
+                if ui_amount and ui_amount > 0:
+                    tokens.append({"mint": mint, "amount": ui_amount})
+        except Exception:
+            pass
+
+    return tokens
 
 
 def _token_prices(mints: list[str]) -> dict[str, float]:
-    if not mints:
-        return {}
-    try:
-        resp = requests.get(JUPITER_PRICE_API, params={"ids": ",".join(mints)}, timeout=15)
-        resp.raise_for_status()
-        data = resp.json().get("data", {})
-        return {m: float(info["price"]) for m, info in data.items() if info.get("price")}
-    except Exception:
-        return {}
+    """Get prices from Jupiter, with CoinGecko fallback for SOL."""
+    prices = {}
+
+    # Jupiter Price API
+    if mints:
+        try:
+            resp = requests.get(
+                JUPITER_PRICE_API,
+                params={"ids": ",".join(mints)},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", {})
+            for m, info in data.items():
+                if info.get("price"):
+                    prices[m] = float(info["price"])
+        except Exception:
+            pass
+
+    # Fallback: get SOL price from CoinGecko if Jupiter didn't return it
+    if SOL_MINT not in prices:
+        try:
+            resp = requests.get(
+                COINGECKO_SOL_PRICE,
+                params={"ids": "solana", "vs_currencies": "usd"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sol_price = resp.json().get("solana", {}).get("usd", 0)
+            if sol_price:
+                prices[SOL_MINT] = float(sol_price)
+        except Exception:
+            pass
+
+    return prices
 
 
 def _token_metadata(mints: list[str]) -> dict[str, dict]:
-    """Try to get token names/symbols from Jupiter token list."""
+    """Get token names/symbols from Jupiter token list."""
     meta = {}
+    # Always include SOL
+    meta[SOL_MINT] = {"symbol": "SOL", "name": "Solana"}
+
+    if not mints:
+        return meta
+
     try:
         resp = requests.get("https://tokens.jup.ag/tokens?tags=verified", timeout=10)
         resp.raise_for_status()
@@ -100,11 +135,27 @@ def _token_metadata(mints: list[str]) -> dict[str, dict]:
                 }
     except Exception:
         pass
+
+    # Also try the "all" list for unverified tokens (like pumpfun tokens)
+    unknown_mints = [m for m in mints if m not in meta]
+    if unknown_mints:
+        try:
+            for mint in unknown_mints[:20]:  # Limit to avoid huge requests
+                resp = requests.get(f"https://tokens.jup.ag/token/{mint}", timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    meta[mint] = {
+                        "symbol": data.get("symbol", mint[:6] + "..."),
+                        "name": data.get("name", "Unknown"),
+                    }
+        except Exception:
+            pass
+
     return meta
 
 
 def fetch_solana_balance(address: str) -> dict:
-    """Fetch full Solana wallet balance."""
+    """Fetch full Solana wallet balance with all tokens."""
     sol = _sol_balance(address)
     tokens = _spl_tokens(address)
 
@@ -115,27 +166,29 @@ def fetch_solana_balance(address: str) -> dict:
     sol_price = prices.get(SOL_MINT, 0)
     sol_usd = (sol or 0) * sol_price
 
+    # Build token list - include ALL tokens with any balance
     token_list = []
     total_tokens_usd = 0.0
 
     for t in tokens:
-        price = prices.get(t["mint"], 0)
-        usd = t["amount"] * price
-        if usd < 0.01:
-            continue
-        meta = metadata.get(t["mint"], {})
+        mint = t["mint"]
+        amount = t["amount"]
+        price = prices.get(mint, 0)
+        usd = amount * price
+        meta = metadata.get(mint, {})
+
         token_list.append({
-            "mint": t["mint"],
-            "symbol": meta.get("symbol", t["mint"][:6] + "..."),
+            "mint": mint,
+            "symbol": meta.get("symbol", mint[:8] + "..."),
             "name": meta.get("name", "Unknown"),
-            "amount": t["amount"],
+            "amount": amount,
             "price": price,
             "usd": usd,
         })
         total_tokens_usd += usd
 
-    # Sort by USD value descending
-    token_list.sort(key=lambda x: x["usd"], reverse=True)
+    # Sort: priced tokens first by USD desc, then unpriced tokens by amount desc
+    token_list.sort(key=lambda x: (x["usd"] > 0, x["usd"], x["amount"]), reverse=True)
 
     return {
         "address": address,
