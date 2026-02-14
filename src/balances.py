@@ -334,7 +334,8 @@ def fetch_solana_balance(address: str) -> dict:
     sol_price = prices.get(SOL_MINT, 0)
     sol_usd = (sol or 0) * sol_price
 
-    # Build ALL tokens with metadata and prices
+    # Build token list - only include tokens that have a price
+    # (stablecoins always have hardcoded $1.00, others need live API price)
     all_token_items = []
     total_tokens_usd = 0.0
 
@@ -344,8 +345,12 @@ def fetch_solana_balance(address: str) -> dict:
         price = prices.get(mint, 0)
         usd = amount * price
         total_tokens_usd += usd
-        meta = metadata.get(mint, {})
 
+        # Skip tokens without a price (no reliable data)
+        if price == 0:
+            continue
+
+        meta = metadata.get(mint, {})
         all_token_items.append({
             "mint": mint,
             "symbol": meta.get("symbol", mint[:8] + "..."),
