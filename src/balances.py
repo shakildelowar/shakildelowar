@@ -245,7 +245,7 @@ def _token_prices(mints: list[str]) -> dict[str, float]:
         except Exception as e:
             print(f"[Prices] Jupiter failed: {e}")
 
-    # Fallback: get SOL price from CoinGecko if Jupiter didn't return it
+    # Fallback 1: CoinGecko for SOL
     if SOL_MINT not in prices:
         try:
             resp = requests.get(
@@ -259,7 +259,38 @@ def _token_prices(mints: list[str]) -> dict[str, float]:
                 prices[SOL_MINT] = float(sol_price)
                 print(f"[Prices] CoinGecko SOL: ${sol_price}")
         except Exception as e:
-            print(f"[Prices] CoinGecko also failed: {e}")
+            print(f"[Prices] CoinGecko failed: {e}")
+
+    # Fallback 2: Binance for SOL
+    if SOL_MINT not in prices:
+        try:
+            resp = requests.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": "SOLUSDT"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sol_price = float(resp.json().get("price", 0))
+            if sol_price:
+                prices[SOL_MINT] = sol_price
+                print(f"[Prices] Binance SOL: ${sol_price}")
+        except Exception as e:
+            print(f"[Prices] Binance failed: {e}")
+
+    # Fallback 3: CoinCap for SOL
+    if SOL_MINT not in prices:
+        try:
+            resp = requests.get(
+                "https://api.coincap.io/v2/assets/solana",
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sol_price = float(resp.json().get("data", {}).get("priceUsd", 0))
+            if sol_price:
+                prices[SOL_MINT] = sol_price
+                print(f"[Prices] CoinCap SOL: ${sol_price}")
+        except Exception as e:
+            print(f"[Prices] CoinCap failed: {e}")
 
     # Last resort: use hardcoded stablecoin prices for any missing known tokens
     for mint in mints:
