@@ -16,7 +16,7 @@ def get_screenshots_dir(config_path: str | None = None) -> str:
     return d
 
 
-def take_screenshot(url: str, output_path: str, wait_seconds: int = 8) -> str:
+def take_screenshot(url: str, output_path: str, wait_seconds: int = 20) -> str:
     """Take a full-page screenshot of a URL. Returns the output path."""
     from playwright.sync_api import sync_playwright
 
@@ -27,7 +27,14 @@ def take_screenshot(url: str, output_path: str, wait_seconds: int = 8) -> str:
         )
         page = browser.new_page(viewport={"width": 1440, "height": 900})
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        # Wait for JS-heavy portfolio pages to finish rendering
+
+        # Wait for network to settle (API calls to finish loading balances)
+        try:
+            page.wait_for_load_state("networkidle", timeout=30000)
+        except Exception:
+            pass  # Some SPAs never fully settle, continue anyway
+
+        # Extra wait for JS rendering to complete
         page.wait_for_timeout(wait_seconds * 1000)
         page.screenshot(path=output_path, full_page=True)
         browser.close()
