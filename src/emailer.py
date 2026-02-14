@@ -42,8 +42,13 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
         if w.get("error"):
             html += f'<div style="color:#f85149;padding:8px 0;">Error: {w["error"]}</div>'
         elif w.get("type") == "solana":
-            # Table header
-            html += """
+            # Holdings section header
+            holdings_usd = w.get("sol_usd", 0) + sum(t.get("usd", 0) for t in w.get("tokens", []))
+            html += f"""
+        <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;">
+          <div style="font-weight:600;font-size:0.9rem;">Holdings</div>
+          <div style="font-weight:600;font-size:0.9rem;">${holdings_usd:.2f}</div>
+        </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #30363d;color:#8b949e;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">
           <div style="flex:2;">Asset</div>
           <div style="flex:1.5;text-align:right;">Balance</div>
@@ -51,8 +56,8 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
           <div style="flex:1;text-align:right;">Value</div>
         </div>"""
 
-            # SOL row (only if >= $1)
-            if w.get("sol_balance") is not None and w.get("sol_usd", 0) >= 1:
+            # SOL row (always shown)
+            if w.get("sol_balance") is not None:
                 html += f"""
         <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">
           <div style="flex:2;"><div style="font-weight:600;font-size:0.9rem;">SOL</div><div style="color:#8b949e;font-size:0.75rem;">Solana</div></div>
@@ -61,10 +66,35 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
           <div style="flex:1;text-align:right;font-weight:600;font-size:0.9rem;">${w.get('sol_usd', 0):.2f}</div>
         </div>"""
 
-            # Token rows
+            # Holdings token rows (>= $1)
             for t in w.get("tokens", []):
                 price_str = f"${t['price']:.4f}" if t.get("price") else "--"
                 html += f"""
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">
+          <div style="flex:2;"><div style="font-weight:600;font-size:0.9rem;">{t['symbol']}</div><div style="color:#8b949e;font-size:0.75rem;">{t.get('name', '')}</div></div>
+          <div style="flex:1.5;text-align:right;color:#c9d1d9;font-size:0.9rem;">{t['amount']:.4f}</div>
+          <div style="flex:1;text-align:right;color:#8b949e;font-size:0.85rem;">{price_str}</div>
+          <div style="flex:1;text-align:right;font-weight:600;font-size:0.9rem;">${t.get('usd', 0):.2f}</div>
+        </div>"""
+
+            # Other section (< $1)
+            other = w.get("other_tokens", [])
+            if other:
+                other_usd = sum(t.get("usd", 0) for t in other)
+                html += f"""
+        <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:16px;border-top:1px solid #30363d;">
+          <div style="font-weight:600;font-size:0.9rem;">Other</div>
+          <div style="font-weight:600;font-size:0.9rem;">${other_usd:.2f}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #30363d;color:#8b949e;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">
+          <div style="flex:2;">Asset</div>
+          <div style="flex:1.5;text-align:right;">Balance</div>
+          <div style="flex:1;text-align:right;">Price</div>
+          <div style="flex:1;text-align:right;">Value</div>
+        </div>"""
+                for t in other:
+                    price_str = f"${t['price']:.4f}" if t.get("price") else "--"
+                    html += f"""
         <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">
           <div style="flex:2;"><div style="font-weight:600;font-size:0.9rem;">{t['symbol']}</div><div style="color:#8b949e;font-size:0.75rem;">{t.get('name', '')}</div></div>
           <div style="flex:1.5;text-align:right;color:#c9d1d9;font-size:0.9rem;">{t['amount']:.4f}</div>

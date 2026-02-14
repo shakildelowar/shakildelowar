@@ -121,13 +121,21 @@
     {% if wallet.error %}
       <div class="error-msg">Error: {{ wallet.error }}</div>
     {% elif wallet.type == 'solana' %}
+
+      <!-- Holdings section -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:4px;">
+        <div style="font-weight:600;font-size:0.9rem;">Holdings</div>
+        <div style="font-weight:600;font-size:0.9rem;">
+          ${{ "%.2f"|format(wallet.sol_usd + (wallet.tokens | sum(attribute='usd'))) }}
+        </div>
+      </div>
       <div class="token-table-header">
         <div>Asset</div>
         <div class="col-right">Balance</div>
         <div class="col-right">Price</div>
         <div class="col-right">Value</div>
       </div>
-      {% if wallet.sol_balance is not none and wallet.sol_usd >= 1 %}
+      {% if wallet.sol_balance is not none %}
       <div class="token-row">
         <div>
           <div class="token-symbol">SOL</div>
@@ -149,7 +157,35 @@
         <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
       </div>
       {% endfor %}
-      {% if not wallet.tokens and wallet.sol_balance is none %}
+
+      <!-- Other section -->
+      {% if wallet.other_tokens %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:16px;border-top:1px solid #30363d;">
+        <div style="font-weight:600;font-size:0.9rem;">Other</div>
+        <div style="font-weight:600;font-size:0.9rem;">
+          ${{ "%.2f"|format(wallet.other_tokens | sum(attribute='usd')) }}
+        </div>
+      </div>
+      <div class="token-table-header">
+        <div>Asset</div>
+        <div class="col-right">Balance</div>
+        <div class="col-right">Price</div>
+        <div class="col-right">Value</div>
+      </div>
+      {% for token in wallet.other_tokens %}
+      <div class="token-row">
+        <div>
+          <div class="token-symbol">{{ token.symbol }}</div>
+          <div class="token-name">{{ token.name }}</div>
+        </div>
+        <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
+        <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
+        <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if not wallet.tokens and not wallet.other_tokens and wallet.sol_balance is none %}
       <div class="empty-tokens">No tokens found</div>
       {% endif %}
 

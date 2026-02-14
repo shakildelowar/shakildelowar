@@ -1,5 +1,6 @@
-"""Fetch wallet balances from Solana RPC and DeBank API."""
+"""Fetch wallet balances from Solana RPC, Solscan API, and DeBank API."""
 
+import time
 import requests
 from urllib.parse import urlparse
 
@@ -29,6 +30,9 @@ SOL_MINT = "So11111111111111111111111111111111111111112"
 LAMPORTS_PER_SOL = 1_000_000_000
 
 DEBANK_API = "https://api.debank.com/user/total_balance"
+
+# Threshold for splitting tokens into "Holdings" vs "Other"
+HOLDINGS_THRESHOLD = 1.00
 
 
 def _rpc_call(payload: dict, timeout: int = 15) -> dict | None:
@@ -92,7 +96,7 @@ def _spl_tokens_via_program(address: str) -> list[dict]:
                 {"programId": program_id},
                 {"encoding": "jsonParsed"},
             ],
-        })
+        }, timeout=20)
         if data:
             accounts = data.get("result", {}).get("value", [])
             print(f"[Tokens] {program_id[:8]}... returned {len(accounts)} account(s)")
@@ -122,7 +126,7 @@ def _spl_tokens_by_mint(address: str) -> list[dict]:
                 {"mint": mint},
                 {"encoding": "jsonParsed"},
             ],
-        })
+        }, timeout=10)
         if data:
             accounts = data.get("result", {}).get("value", [])
             for acct in accounts:
@@ -131,17 +135,88 @@ def _spl_tokens_by_mint(address: str) -> list[dict]:
                 if ui_amount and ui_amount > 0:
                     tokens.append({"mint": mint, "amount": ui_amount})
                     print(f"[Tokens] Found {mint[:8]}... = {ui_amount}")
+        # Small delay to avoid rate limiting on sequential calls
+        time.sleep(0.2)
+
+    return tokens
+
+
+def _spl_tokens_via_solscan(address: str) -> list[dict]:
+    """Fallback: use Solscan V2 API (REST, no RPC needed)."""
+    tokens = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Origin": "https://solscan.io",
+    }
+    try:
+        resp = requests.get(
+            f"https://api-v2.solscan.io/v2/account/token-accounts",
+            params={"address": address, "type": "token", "page": 1, "page_size": 40},
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("data", {}).get("token_accounts", []) if isinstance(data.get("data"), dict) else data.get("data", [])
+        for item in items:
+            amount = item.get("amount", 0)
+            decimals = item.get("token_decimals", 0)
+            mint = item.get("token_address", "")
+            if amount and decimals and mint:
+                ui_amount = amount / (10 ** decimals)
+                if ui_amount > 0:
+                    tokens.append({"mint": mint, "amount": ui_amount})
+        print(f"[Solscan] Returned {len(tokens)} token(s)")
+    except Exception as e:
+        print(f"[Solscan] Failed: {e}")
+
+    # Also try Token-2022 accounts
+    try:
+        resp = requests.get(
+            f"https://api-v2.solscan.io/v2/account/token-accounts",
+            params={"address": address, "type": "token", "page": 1, "page_size": 40,
+                    "token_type": "token2022"},
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("data", {}).get("token_accounts", []) if isinstance(data.get("data"), dict) else data.get("data", [])
+        for item in items:
+            amount = item.get("amount", 0)
+            decimals = item.get("token_decimals", 0)
+            mint = item.get("token_address", "")
+            if amount and decimals and mint:
+                ui_amount = amount / (10 ** decimals)
+                if ui_amount > 0:
+                    tokens.append({"mint": mint, "amount": ui_amount})
+        print(f"[Solscan Token-2022] Returned {len(tokens)} total token(s)")
+    except Exception as e:
+        print(f"[Solscan Token-2022] Failed: {e}")
 
     return tokens
 
 
 def _spl_tokens(address: str) -> list[dict]:
-    """Get SPL token accounts. Tries full scan first, falls back to known mints."""
+    """Get SPL token accounts. Tries multiple strategies."""
+    # Strategy 1: Full program scan via RPC
     tokens = _spl_tokens_via_program(address)
+    if tokens:
+        print(f"[Tokens] Got {len(tokens)} from RPC program scan")
+        return tokens
 
-    if not tokens:
-        # Full scan returned nothing - likely rate limited. Try known mints individually.
-        tokens = _spl_tokens_by_mint(address)
+    # Strategy 2: Solscan REST API (no RPC needed, different rate limits)
+    tokens = _spl_tokens_via_solscan(address)
+    if tokens:
+        print(f"[Tokens] Got {len(tokens)} from Solscan API")
+        return tokens
+
+    # Strategy 3: Query known mints individually via RPC
+    tokens = _spl_tokens_by_mint(address)
+    if tokens:
+        print(f"[Tokens] Got {len(tokens)} from individual mint queries")
 
     print(f"[Tokens] Total tokens with balance: {len(tokens)}")
     return tokens
@@ -206,11 +281,11 @@ def _token_metadata(mints: list[str]) -> dict[str, dict]:
     except Exception:
         pass
 
-    # Also try the "all" list for unverified tokens (like pumpfun tokens)
+    # Individual lookup for unverified tokens (like pumpfun tokens)
     unknown_mints = [m for m in mints if m not in meta]
     if unknown_mints:
-        try:
-            for mint in unknown_mints[:20]:  # Limit to avoid huge requests
+        for mint in unknown_mints[:20]:
+            try:
                 resp = requests.get(f"https://tokens.jup.ag/token/{mint}", timeout=5)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -218,8 +293,8 @@ def _token_metadata(mints: list[str]) -> dict[str, dict]:
                         "symbol": data.get("symbol", mint[:6] + "..."),
                         "name": data.get("name", "Unknown"),
                     }
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     return meta
 
@@ -236,9 +311,8 @@ def fetch_solana_balance(address: str) -> dict:
     sol_price = prices.get(SOL_MINT, 0)
     sol_usd = (sol or 0) * sol_price
 
-    # Build token list - only include tokens worth >= $1
-    MIN_USD_DISPLAY = 1.00
-    token_list = []
+    # Build ALL tokens with metadata and prices
+    all_token_items = []
     total_tokens_usd = 0.0
 
     for t in tokens:
@@ -247,13 +321,9 @@ def fetch_solana_balance(address: str) -> dict:
         price = prices.get(mint, 0)
         usd = amount * price
         total_tokens_usd += usd
-
-        # Skip tokens worth less than $1
-        if usd < MIN_USD_DISPLAY:
-            continue
-
         meta = metadata.get(mint, {})
-        token_list.append({
+
+        all_token_items.append({
             "mint": mint,
             "symbol": meta.get("symbol", mint[:8] + "..."),
             "name": meta.get("name", "Unknown"),
@@ -262,8 +332,12 @@ def fetch_solana_balance(address: str) -> dict:
             "usd": usd,
         })
 
-    # Sort by USD value descending
-    token_list.sort(key=lambda x: x["usd"], reverse=True)
+    # Split into holdings (>= threshold) and other (< threshold)
+    holdings = [t for t in all_token_items if t["usd"] >= HOLDINGS_THRESHOLD]
+    other = [t for t in all_token_items if t["usd"] < HOLDINGS_THRESHOLD]
+
+    holdings.sort(key=lambda x: x["usd"], reverse=True)
+    other.sort(key=lambda x: x["usd"], reverse=True)
 
     return {
         "address": address,
@@ -271,7 +345,8 @@ def fetch_solana_balance(address: str) -> dict:
         "sol_balance": sol,
         "sol_price": sol_price,
         "sol_usd": sol_usd,
-        "tokens": token_list,
+        "tokens": holdings,
+        "other_tokens": other,
         "total_usd": sol_usd + total_tokens_usd,
         "error": None,
     }
