@@ -34,6 +34,52 @@ LAMPORTS_PER_SOL = 1_000_000_000
 DEBANK_API = "https://api.debank.com/user/total_balance"
 ANKR_MULTICHAIN = "https://rpc.ankr.com/multichain"
 
+# Public RPC endpoints for direct chain queries (ultimate fallback)
+EVM_CHAINS = {
+    "ethereum": {
+        "rpcs": ["https://eth.llamarpc.com", "https://cloudflare-eth.com", "https://rpc.ankr.com/eth"],
+        "native": "ETH",
+        "decimals": 18,
+        "coingecko_id": "ethereum",
+    },
+    "polygon": {
+        "rpcs": ["https://polygon-rpc.com", "https://rpc.ankr.com/polygon"],
+        "native": "POL",
+        "decimals": 18,
+        "coingecko_id": "matic-network",
+    },
+    "bsc": {
+        "rpcs": ["https://bsc-dataseed.binance.org", "https://rpc.ankr.com/bsc"],
+        "native": "BNB",
+        "decimals": 18,
+        "coingecko_id": "binancecoin",
+    },
+    "arbitrum": {
+        "rpcs": ["https://arb1.arbitrum.io/rpc", "https://rpc.ankr.com/arbitrum"],
+        "native": "ETH",
+        "decimals": 18,
+        "coingecko_id": "ethereum",
+    },
+    "optimism": {
+        "rpcs": ["https://mainnet.optimism.io", "https://rpc.ankr.com/optimism"],
+        "native": "ETH",
+        "decimals": 18,
+        "coingecko_id": "ethereum",
+    },
+    "base": {
+        "rpcs": ["https://mainnet.base.org", "https://rpc.ankr.com/base"],
+        "native": "ETH",
+        "decimals": 18,
+        "coingecko_id": "ethereum",
+    },
+    "avalanche": {
+        "rpcs": ["https://api.avax.network/ext/bc/C/rpc", "https://rpc.ankr.com/avalanche"],
+        "native": "AVAX",
+        "decimals": 18,
+        "coingecko_id": "avalanche-2",
+    },
+}
+
 # Threshold for splitting tokens into "Holdings" vs "Other"
 HOLDINGS_THRESHOLD = 1.00
 
@@ -413,61 +459,154 @@ def fetch_solana_balance(address: str) -> dict:
 
 
 def _evm_balance_ankr(address: str) -> dict | None:
-    """Fetch EVM balance via Ankr multichain API (free, no key needed)."""
+    """Fetch EVM balance via Ankr multichain API with retry."""
+    for attempt in range(3):
+        try:
+            resp = requests.post(ANKR_MULTICHAIN, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "ankr_getAccountBalance",
+                "params": {"walletAddress": address.lower()},
+            }, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+            if "error" in data:
+                print(f"[Ankr] Error (attempt {attempt+1}): {data['error']}")
+                if attempt < 2:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                return None
+
+            assets = data.get("result", {}).get("assets", [])
+            total = float(data.get("result", {}).get("totalBalanceUsd", 0))
+
+            chain_totals = {}
+            for asset in assets:
+                chain = asset.get("blockchain", "unknown")
+                usd = float(asset.get("balanceUsd", 0))
+                if chain not in chain_totals:
+                    chain_totals[chain] = {"name": chain.upper(), "usd": 0}
+                chain_totals[chain]["usd"] += usd
+
+            chains = [v for v in chain_totals.values() if v["usd"] > 0.01]
+            chains.sort(key=lambda x: x["usd"], reverse=True)
+
+            tokens = []
+            for asset in assets:
+                usd = float(asset.get("balanceUsd", 0))
+                if usd > 0.01:
+                    tokens.append({
+                        "symbol": asset.get("tokenSymbol", "???"),
+                        "name": asset.get("tokenName", "Unknown"),
+                        "amount": float(asset.get("balance", 0)),
+                        "price": float(asset.get("tokenPrice", 0)),
+                        "usd": usd,
+                        "chain": asset.get("blockchain", ""),
+                    })
+            tokens.sort(key=lambda x: x["usd"], reverse=True)
+
+            print(f"[Ankr] Found {len(assets)} assets, total ${total:.2f}")
+            return {
+                "address": address,
+                "type": "evm",
+                "chains": chains,
+                "evm_tokens": tokens,
+                "total_usd": total,
+                "error": None,
+            }
+        except Exception as e:
+            print(f"[Ankr] Attempt {attempt+1} failed: {e}")
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+    return None
+
+
+def _evm_balance_direct_rpc(address: str) -> dict | None:
+    """Fallback: query each chain's public RPC for native balance."""
+    chains = []
+    evm_tokens = []
+    total_usd = 0
+
+    # Get native token prices from CoinGecko in one call
+    coingecko_ids = list(set(c["coingecko_id"] for c in EVM_CHAINS.values()))
+    prices = {}
     try:
-        resp = requests.post(ANKR_MULTICHAIN, json={
-            "jsonrpc": "2.0", "id": 1,
-            "method": "ankr_getAccountBalance",
-            "params": {"walletAddress": address.lower()},
-        }, timeout=20)
+        resp = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": ",".join(coingecko_ids), "vs_currencies": "usd"},
+            timeout=10,
+        )
         resp.raise_for_status()
         data = resp.json()
-        if "error" in data:
-            print(f"[Ankr] Error: {data['error']}")
-            return None
-
-        assets = data.get("result", {}).get("assets", [])
-        total = float(data.get("result", {}).get("totalBalanceUsd", 0))
-
-        # Group by blockchain
-        chain_totals = {}
-        for asset in assets:
-            chain = asset.get("blockchain", "unknown")
-            usd = float(asset.get("balanceUsd", 0))
-            if chain not in chain_totals:
-                chain_totals[chain] = {"name": chain.upper(), "usd": 0}
-            chain_totals[chain]["usd"] += usd
-
-        chains = [v for v in chain_totals.values() if v["usd"] > 0.01]
-        chains.sort(key=lambda x: x["usd"], reverse=True)
-
-        # Also build token list for detail view
-        tokens = []
-        for asset in assets:
-            usd = float(asset.get("balanceUsd", 0))
-            if usd > 0.01:
-                tokens.append({
-                    "symbol": asset.get("tokenSymbol", "???"),
-                    "name": asset.get("tokenName", "Unknown"),
-                    "amount": float(asset.get("balance", 0)),
-                    "price": float(asset.get("tokenPrice", 0)),
-                    "usd": usd,
-                    "chain": asset.get("blockchain", ""),
-                })
-        tokens.sort(key=lambda x: x["usd"], reverse=True)
-
-        print(f"[Ankr] Found {len(assets)} assets, total ${total:.2f}")
-        return {
-            "address": address,
-            "type": "evm",
-            "chains": chains,
-            "evm_tokens": tokens,
-            "total_usd": total,
-            "error": None,
-        }
+        for cg_id, vals in data.items():
+            prices[cg_id] = vals.get("usd", 0)
+        print(f"[DirectRPC] Got prices for: {list(prices.keys())}")
     except Exception as e:
-        print(f"[Ankr] Failed: {e}")
+        print(f"[DirectRPC] CoinGecko prices failed: {e}")
+        # Try Binance as fallback for ETH price
+        try:
+            resp = requests.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": "ETHUSDT"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            prices["ethereum"] = float(resp.json().get("price", 0))
+        except Exception:
+            pass
+
+    for chain_name, chain_info in EVM_CHAINS.items():
+        for rpc_url in chain_info["rpcs"]:
+            try:
+                resp = requests.post(rpc_url, json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "eth_getBalance",
+                    "params": [address.lower(), "latest"],
+                }, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                if "error" in data:
+                    continue
+
+                hex_balance = data.get("result", "0x0")
+                wei = int(hex_balance, 16)
+                balance = wei / (10 ** chain_info["decimals"])
+
+                if balance < 0.000001:
+                    break  # Got result, but balance is ~0
+
+                price = prices.get(chain_info["coingecko_id"], 0)
+                usd = balance * price
+
+                chains.append({"name": chain_name.upper(), "usd": usd})
+                evm_tokens.append({
+                    "symbol": chain_info["native"],
+                    "name": f"{chain_name.title()} Native",
+                    "amount": balance,
+                    "price": price,
+                    "usd": usd,
+                    "chain": chain_name,
+                })
+                total_usd += usd
+                print(f"[DirectRPC] {chain_name}: {balance:.6f} {chain_info['native']} = ${usd:.2f}")
+                break
+            except Exception as e:
+                print(f"[DirectRPC] {chain_name} {rpc_url} failed: {e}")
+                continue
+
+    if not chains and not evm_tokens:
         return None
+
+    chains.sort(key=lambda x: x["usd"], reverse=True)
+    evm_tokens.sort(key=lambda x: x["usd"], reverse=True)
+
+    return {
+        "address": address,
+        "type": "evm",
+        "chains": chains,
+        "evm_tokens": evm_tokens,
+        "total_usd": total_usd,
+        "error": None,
+    }
 
 
 def _evm_balance_debank(address: str) -> dict | None:
@@ -511,12 +650,18 @@ def _evm_balance_debank(address: str) -> dict | None:
 
 
 def fetch_evm_balance(address: str) -> dict:
-    """Fetch EVM wallet balance. Tries Ankr first, DeBank as fallback."""
+    """Fetch EVM wallet balance. Tries Ankr, DeBank, then direct RPC."""
     result = _evm_balance_ankr(address)
     if result:
         return result
 
+    print("[EVM] Ankr failed, trying DeBank...")
     result = _evm_balance_debank(address)
+    if result:
+        return result
+
+    print("[EVM] DeBank failed, trying direct chain RPCs...")
+    result = _evm_balance_direct_rpc(address)
     if result:
         return result
 

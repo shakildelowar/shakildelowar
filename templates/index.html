@@ -4,161 +4,253 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #111214;
-      color: #e1e4e8;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0b0e11;
+      color: #eaecef;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .container { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
+    .container { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
 
-    h1 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; color: #fff; }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
 
-    /* Tabs */
+    /* Tabs - underline style */
     .tabs {
       display: flex;
       gap: 0;
-      margin-bottom: 20px;
-      background: #1a1c1f;
-      border-radius: 10px;
-      padding: 3px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid #1e2329;
     }
     .tab {
-      flex: 1;
-      padding: 9px 16px;
+      padding: 12px 20px;
       background: none;
       border: none;
-      color: #8b949e;
-      font-size: 0.85rem;
+      border-bottom: 2px solid transparent;
+      color: #848e9c;
+      font-family: inherit;
+      font-size: 0.875rem;
       font-weight: 500;
       cursor: pointer;
-      border-radius: 8px;
       transition: all 0.2s;
     }
-    .tab:hover { color: #e1e4e8; }
-    .tab.active { color: #fff; background: #2a2d31; }
+    .tab:hover { color: #eaecef; }
+    .tab.active { color: #f0b90b; border-bottom-color: #f0b90b; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
     /* Cards */
     .card {
-      background: #1a1c1f;
-      border-radius: 12px;
-      padding: 20px;
+      background: #14171c;
+      border-radius: 16px;
+      padding: 24px;
       margin-bottom: 16px;
+      border: 1px solid #1e2329;
     }
-    .card h2 { font-size: 0.95rem; color: #c9d1d9; margin-bottom: 14px; }
+    .card h2 { font-size: 0.8rem; color: #848e9c; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
 
     /* Add URL form */
-    .add-form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .add-form { display: flex; gap: 10px; flex-wrap: wrap; }
     .add-form input {
-      background: #111214;
-      border: 1px solid #2a2d31;
-      color: #e1e4e8;
-      padding: 10px 14px;
-      border-radius: 8px;
+      background: #1e2329;
+      border: 1px solid #2b3139;
+      color: #eaecef;
+      padding: 12px 16px;
+      border-radius: 12px;
       font-size: 0.85rem;
+      font-family: inherit;
       outline: none;
       transition: border-color 0.2s;
     }
-    .add-form input:focus { border-color: #4f8cff; }
-    .add-form input[name="url"] { flex: 1; min-width: 280px; font-family: monospace; }
+    .add-form input:focus { border-color: #f0b90b; }
+    .add-form input[name="url"] { flex: 1; min-width: 260px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; }
     .add-form input[name="label"] { width: 160px; }
 
     /* Buttons */
     .btn {
-      padding: 9px 18px;
+      padding: 10px 20px;
       border: none;
-      border-radius: 8px;
+      border-radius: 12px;
       font-size: 0.85rem;
-      font-weight: 500;
+      font-weight: 600;
+      font-family: inherit;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
-    .btn:hover { opacity: 0.85; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: #4f8cff; color: #fff; }
-    .btn-danger { background: transparent; color: #f85149; border: 1px solid #30363d; font-size: 0.8rem; padding: 5px 10px; }
-    .btn-danger:hover { background: #f8514920; }
-    .btn-secondary { background: #2a2d31; color: #e1e4e8; }
+    .btn:hover { filter: brightness(1.1); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary { background: #f0b90b; color: #0b0e11; }
+    .btn-danger { background: none; color: #f6465d; border: 1px solid #2b3139; font-size: 0.8rem; padding: 6px 12px; border-radius: 8px; }
+    .btn-danger:hover { background: #f6465d15; }
+    .btn-secondary { background: #1e2329; color: #eaecef; border: 1px solid #2b3139; }
 
     /* URL list */
     .url-row {
       display: flex;
       align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid #21262d;
-      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid #1e2329;
+      gap: 14px;
     }
     .url-row:last-child { border-bottom: none; }
 
     .url-badge {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 3px 10px;
       border-radius: 6px;
       font-size: 0.65rem;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.04em;
       flex-shrink: 0;
     }
-    .badge-debank { background: #1c3a5f; color: #58a6ff; }
-    .badge-jupiter { background: #2a1f4e; color: #bc8cff; }
+    .badge-debank { background: #f0b90b20; color: #f0b90b; }
+    .badge-jupiter { background: #c7a4ff20; color: #c7a4ff; }
 
     .url-info { flex: 1; min-width: 0; }
-    .url-label { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
+    .url-label { font-weight: 600; font-size: 0.9rem; margin-bottom: 3px; color: #eaecef; }
     .url-link {
-      font-family: monospace;
-      font-size: 0.75rem;
-      color: #6e7681;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.72rem;
+      color: #5e6673;
       word-break: break-all;
     }
-    .url-link a { color: #4f8cff; text-decoration: none; }
-    .url-link a:hover { text-decoration: underline; }
+    .url-link a { color: #848e9c; text-decoration: none; }
+    .url-link a:hover { color: #f0b90b; }
 
     /* Screenshot gallery */
     .screenshots-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
     .screenshot-card {
-      background: #1a1c1f;
-      border-radius: 12px;
+      background: #14171c;
+      border: 1px solid #1e2329;
+      border-radius: 16px;
       overflow: hidden;
     }
-    .screenshot-card .sc-header { padding: 12px 16px; border-bottom: 1px solid #21262d; }
+    .screenshot-card .sc-header { padding: 14px 18px; border-bottom: 1px solid #1e2329; }
     .screenshot-card .sc-label { font-weight: 500; font-size: 0.85rem; }
     .screenshot-card img { width: 100%; display: block; cursor: pointer; }
     .screenshot-card img:hover { opacity: 0.9; }
 
     /* Settings form */
-    .settings-form { display: flex; flex-direction: column; gap: 12px; }
-    .settings-form label { font-size: 0.8rem; color: #6e7681; display: block; margin-bottom: 4px; }
+    .settings-form { display: flex; flex-direction: column; gap: 14px; }
+    .settings-form label { font-size: 0.75rem; color: #5e6673; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500; }
     .settings-form input {
-      background: #111214;
-      border: 1px solid #2a2d31;
-      color: #e1e4e8;
-      padding: 10px 14px;
-      border-radius: 8px;
+      background: #1e2329;
+      border: 1px solid #2b3139;
+      color: #eaecef;
+      padding: 12px 16px;
+      border-radius: 12px;
       font-size: 0.85rem;
+      font-family: inherit;
       outline: none;
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
     }
-    .settings-form input:focus { border-color: #4f8cff; }
+    .settings-form input:focus { border-color: #f0b90b; }
 
-    .empty-state { padding: 40px 20px; text-align: center; color: #484f58; font-size: 0.9rem; }
-    .actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .empty-state { padding: 48px 24px; text-align: center; color: #5e6673; font-size: 0.9rem; }
+    .actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+
+    /* Balance wallet card header */
+    .wallet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #1e2329;
+      margin-bottom: 4px;
+    }
+    .wallet-total {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #0ecb81;
+      letter-spacing: -0.02em;
+    }
+    .wallet-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #eaecef;
+      margin-top: 6px;
+    }
+    .wallet-addr {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: #5e6673;
+      margin-top: 2px;
+    }
+
+    /* Section headers */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      margin-top: 8px;
+    }
+    .section-title {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: #848e9c;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .section-total {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #eaecef;
+    }
+
+    /* Token table */
+    .token-grid-header {
+      display: grid;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e2329;
+      color: #5e6673;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .token-row {
+      display: grid;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr;
+      gap: 8px;
+      padding: 12px 0;
+      border-bottom: 1px solid #1e232905;
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .token-row:hover { background: #1e232940; border-radius: 8px; margin: 0 -8px; padding-left: 8px; padding-right: 8px; }
+    .token-symbol { font-weight: 600; font-size: 0.9rem; color: #eaecef; }
+    .token-name { color: #5e6673; font-size: 0.72rem; margin-top: 1px; }
+    .token-balance { text-align: right; color: #b7bdc6; font-size: 0.85rem; }
+    .token-price { text-align: right; color: #5e6673; font-size: 0.85rem; }
+    .token-value { text-align: right; font-weight: 600; font-size: 0.85rem; color: #eaecef; }
 
     /* Toast */
     .toast {
       position: fixed; bottom: 24px; right: 24px;
-      padding: 10px 18px; border-radius: 8px; font-size: 0.85rem;
+      padding: 12px 20px; border-radius: 12px; font-size: 0.85rem; font-family: inherit;
       z-index: 1000; transform: translateY(80px); opacity: 0; transition: all 0.3s;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
-    .toast.success { background: #238636; color: #fff; }
-    .toast.error { background: #da3633; color: #fff; }
+    .toast.success { background: #0ecb81; color: #0b0e11; font-weight: 600; }
+    .toast.error { background: #f6465d; color: #fff; font-weight: 600; }
 
     /* Lightbox */
     .lightbox {
@@ -170,8 +262,11 @@
     .lightbox img { max-width: 95vw; max-height: 95vh; border-radius: 8px; }
 
     @media (max-width: 600px) {
+      .container { padding: 20px 14px; }
       .add-form { flex-direction: column; }
       .add-form input { width: 100% !important; min-width: auto !important; }
+      .token-grid-header, .token-row { grid-template-columns: 1.5fr 1fr 0.8fr 0.8fr; font-size: 0.75rem; }
+      .wallet-total { font-size: 1.3rem; }
     }
   </style>
 </head>
@@ -191,16 +286,16 @@
       <div class="card">
         <h2>Add URL</h2>
         <form class="add-form" id="addForm">
-          <input type="text" name="url" placeholder="Paste DeBank or Jupiter URL..." required>
+          <input type="text" name="url" placeholder="DeBank or Jupiter URL" required>
           <input type="text" name="label" placeholder="Label (optional)">
           <button type="submit" class="btn btn-primary" id="addBtn">Add</button>
         </form>
       </div>
 
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-          <h2 style="margin:0;">Tracked URLs</h2>
-          <span id="urlCount" style="color:#6e7681;font-size:0.8rem;"></span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="margin:0;">Tracked</h2>
+          <span id="urlCount" style="color:#5e6673;font-size:0.75rem;font-weight:500;"></span>
         </div>
         <div id="urlList">
           <div class="empty-state">Loading...</div>
@@ -234,9 +329,9 @@
     <div class="tab-content" id="tab-settings">
       <div class="card">
         <h2>Email Settings</h2>
-        <p style="color:#6e7681;font-size:0.8rem;margin-bottom:16px;">
+        <p style="color:#5e6673;font-size:0.8rem;margin-bottom:18px;">
           Configure where reports get emailed. For Gmail, use an
-          <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#4f8cff;">App Password</a>.
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#f0b90b;">App Password</a>.
         </p>
         <form class="settings-form" id="emailForm">
           <div>
@@ -259,7 +354,7 @@
             <label>SMTP Port</label>
             <input type="number" name="smtp_port" value="587">
           </div>
-          <button type="submit" class="btn btn-primary" style="align-self:flex-start;margin-top:8px;">Save</button>
+          <button type="submit" class="btn btn-primary" style="align-self:flex-start;margin-top:10px;">Save</button>
         </form>
       </div>
     </div>
@@ -333,8 +428,8 @@
       container.innerHTML = urls.map(u => {
         const src = detectSource(u.url);
         const badge = src === 'debank'
-          ? '<span class="url-badge badge-debank">DeBank</span>'
-          : '<span class="url-badge badge-jupiter">Jupiter</span>';
+          ? '<span class="url-badge badge-debank">EVM</span>'
+          : '<span class="url-badge badge-jupiter">Solana</span>';
         const label = (u.label && u.label !== u.url) ? '<div class="url-label">' + esc(u.label) + '</div>' : '';
 
         return '<div class="url-row">'
@@ -506,22 +601,21 @@
       return '$' + Number(val).toExponential(2);
     }
 
-    function tokenTable(rows) {
-      let html = '<div style="margin-top:4px;">'
-        + '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #2a2d31;color:#6e7681;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;">'
-        + '<div>Asset</div><div style="text-align:right;">Balance</div><div style="text-align:right;">Price</div><div style="text-align:right;">Value</div></div>';
-      html += rows.join('');
-      html += '</div>';
-      return html;
+    function tokenTableHTML(rows) {
+      return '<div style="margin-top:4px;">'
+        + '<div class="token-grid-header">'
+        + '<div>Asset</div><div style="text-align:right;">Balance</div><div style="text-align:right;">Price</div><div style="text-align:right;">Value</div></div>'
+        + rows.join('')
+        + '</div>';
     }
 
-    function tokenRow(symbol, name, amount, price, usd) {
-      return '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #1e2024;align-items:center;">'
-        + '<div><div style="font-weight:600;font-size:0.9rem;">' + esc(symbol) + '</div>'
-        + '<div style="color:#6e7681;font-size:0.7rem;">' + esc(name) + '</div></div>'
-        + '<div style="text-align:right;color:#c9d1d9;font-size:0.85rem;">' + formatAmount(amount) + '</div>'
-        + '<div style="text-align:right;color:#6e7681;font-size:0.85rem;">' + formatPrice(price) + '</div>'
-        + '<div style="text-align:right;font-weight:600;font-size:0.85rem;">' + formatUSD(usd) + '</div></div>';
+    function tokenRowHTML(symbol, name, amount, price, usd) {
+      return '<div class="token-row">'
+        + '<div><div class="token-symbol">' + esc(symbol) + '</div>'
+        + '<div class="token-name">' + esc(name) + '</div></div>'
+        + '<div class="token-balance">' + formatAmount(amount) + '</div>'
+        + '<div class="token-price">' + formatPrice(price) + '</div>'
+        + '<div class="token-value">' + formatUSD(usd) + '</div></div>';
     }
 
     async function fetchBalances() {
@@ -546,16 +640,16 @@
           let inner = '';
 
           if (w.error) {
-            inner = '<div style="color:#f85149;padding:8px 0;font-size:0.85rem;">' + esc(w.error) + '</div>';
+            inner = '<div style="color:#f6465d;padding:12px 0;font-size:0.85rem;">' + esc(w.error) + '</div>';
           } else if (w.type === 'solana') {
-            // Holdings section (SOL + tokens >= $1)
+            // Holdings section
             let holdingsRows = [];
             if (w.sol_balance != null) {
-              holdingsRows.push(tokenRow('SOL', 'Solana', w.sol_balance, w.sol_price, w.sol_usd));
+              holdingsRows.push(tokenRowHTML('SOL', 'Solana', w.sol_balance, w.sol_price, w.sol_usd));
             }
             if (w.tokens && w.tokens.length) {
               w.tokens.forEach(t => {
-                holdingsRows.push(tokenRow(t.symbol, t.name || '', t.amount, t.price, t.usd));
+                holdingsRows.push(tokenRowHTML(t.symbol, t.name || '', t.amount, t.price, t.usd));
               });
             }
 
@@ -563,10 +657,10 @@
             if (w.tokens) w.tokens.forEach(t => holdingsTotal += (t.usd || 0));
 
             if (holdingsRows.length) {
-              inner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:4px;">'
-                + '<div style="font-weight:600;font-size:0.85rem;color:#8b949e;">Holdings</div>'
-                + '<div style="font-weight:600;font-size:0.85rem;">' + formatUSD(holdingsTotal) + '</div></div>';
-              inner += tokenTable(holdingsRows);
+              inner += '<div class="section-header">'
+                + '<div class="section-title">Holdings</div>'
+                + '<div class="section-total">' + formatUSD(holdingsTotal) + '</div></div>';
+              inner += tokenTableHTML(holdingsRows);
             }
 
             // Other section
@@ -575,40 +669,39 @@
               w.other_tokens.forEach(t => otherTotal += (t.usd || 0));
               let otherRows = [];
               w.other_tokens.forEach(t => {
-                otherRows.push(tokenRow(t.symbol, t.name || '', t.amount, t.price, t.usd));
+                otherRows.push(tokenRowHTML(t.symbol, t.name || '', t.amount, t.price, t.usd));
               });
-              inner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:12px;border-top:1px solid #2a2d31;">'
-                + '<div style="font-weight:600;font-size:0.85rem;color:#8b949e;">Other</div>'
-                + '<div style="font-weight:600;font-size:0.85rem;">' + formatUSD(otherTotal) + '</div></div>';
-              inner += tokenTable(otherRows);
+              inner += '<div class="section-header" style="margin-top:16px;padding-top:16px;border-top:1px solid #1e2329;">'
+                + '<div class="section-title">Other</div>'
+                + '<div class="section-total">' + formatUSD(otherTotal) + '</div></div>';
+              inner += tokenTableHTML(otherRows);
             }
 
             if (!holdingsRows.length && !(w.other_tokens && w.other_tokens.length)) {
-              inner = '<div style="color:#484f58;font-size:0.85rem;padding:8px 0;">No tokens found</div>';
+              inner = '<div style="color:#5e6673;font-size:0.85rem;padding:12px 0;">No tokens found</div>';
             }
           } else if (w.type === 'evm') {
-            // EVM: show individual tokens if available, otherwise chains
             if (w.evm_tokens && w.evm_tokens.length) {
               let rows = [];
               w.evm_tokens.forEach(t => {
-                rows.push(tokenRow(t.symbol, t.name || t.chain || '', t.amount, t.price, t.usd));
+                rows.push(tokenRowHTML(t.symbol, t.name || t.chain || '', t.amount, t.price, t.usd));
               });
-              inner = tokenTable(rows);
+              inner = tokenTableHTML(rows);
             } else if (w.chains && w.chains.length) {
               let rows = [];
               w.chains.forEach(c => {
-                rows.push(tokenRow(c.name, 'Chain', '--', '--', c.usd));
+                rows.push(tokenRowHTML(c.name, 'Chain', '--', '--', c.usd));
               });
-              inner = tokenTable(rows);
+              inner = tokenTableHTML(rows);
             }
           }
 
           return '<div class="card">'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:12px;border-bottom:1px solid #21262d;">'
+            + '<div class="wallet-header">'
             + '<div><span class="url-badge ' + typeClass + '">' + typeName + '</span>'
-            + '<div style="font-weight:600;margin-top:4px;">' + esc(w.label || '') + '</div>'
-            + '<div style="font-family:monospace;font-size:0.7rem;color:#6e7681;">' + esc(w.address || '') + '</div></div>'
-            + '<div style="font-size:1.4rem;font-weight:700;color:#3fb950;">' + formatUSD(w.total_usd) + '</div></div>'
+            + '<div class="wallet-name">' + esc(w.label || '') + '</div>'
+            + '<div class="wallet-addr">' + esc(w.address || '') + '</div></div>'
+            + '<div class="wallet-total">' + formatUSD(w.total_usd) + '</div></div>'
             + inner + '</div>';
         }).join('');
 
