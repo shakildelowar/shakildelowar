@@ -7,6 +7,21 @@ SOLANA_RPCS = [
     "https://api.mainnet-beta.solana.com",
     "https://solana-rpc.publicnode.com",
     "https://rpc.ankr.com/solana",
+    "https://solana.drpc.org",
+]
+
+# Well-known Solana token mints to query individually as fallback
+KNOWN_MINTS = [
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  # USDT
+    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",   # JUP
+    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",  # BONK
+    "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",   # JTO
+    "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",  # WETH
+    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",   # mSOL
+    "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj",  # stSOL
+    "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",   # bSOL
+    "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof",    # RNDR
 ]
 JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
 COINGECKO_SOL_PRICE = "https://api.coingecko.com/api/v3/simple/price"
@@ -61,8 +76,8 @@ def _sol_balance(address: str) -> float | None:
     return None
 
 
-def _spl_tokens(address: str) -> list[dict]:
-    """Get ALL SPL token accounts including Token-2022."""
+def _spl_tokens_via_program(address: str) -> list[dict]:
+    """Get ALL SPL token accounts by querying program IDs (heavy call)."""
     tokens = []
 
     for program_id in [
@@ -89,6 +104,44 @@ def _spl_tokens(address: str) -> list[dict]:
                     tokens.append({"mint": mint, "amount": ui_amount})
         else:
             print(f"[Tokens] {program_id[:8]}... ALL RPCs failed")
+
+    return tokens
+
+
+def _spl_tokens_by_mint(address: str) -> list[dict]:
+    """Fallback: query known token mints individually (lighter calls)."""
+    tokens = []
+    print(f"[Tokens] Falling back to individual mint queries...")
+
+    for mint in KNOWN_MINTS:
+        data = _rpc_call({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getTokenAccountsByOwner",
+            "params": [
+                address,
+                {"mint": mint},
+                {"encoding": "jsonParsed"},
+            ],
+        })
+        if data:
+            accounts = data.get("result", {}).get("value", [])
+            for acct in accounts:
+                info = acct["account"]["data"]["parsed"]["info"]
+                ui_amount = info.get("tokenAmount", {}).get("uiAmount", 0)
+                if ui_amount and ui_amount > 0:
+                    tokens.append({"mint": mint, "amount": ui_amount})
+                    print(f"[Tokens] Found {mint[:8]}... = {ui_amount}")
+
+    return tokens
+
+
+def _spl_tokens(address: str) -> list[dict]:
+    """Get SPL token accounts. Tries full scan first, falls back to known mints."""
+    tokens = _spl_tokens_via_program(address)
+
+    if not tokens:
+        # Full scan returned nothing - likely rate limited. Try known mints individually.
+        tokens = _spl_tokens_by_mint(address)
 
     print(f"[Tokens] Total tokens with balance: {len(tokens)}")
     return tokens
