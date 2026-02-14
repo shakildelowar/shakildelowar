@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Flask web server for the Portfolio Aggregator."""
+"""Flask web server for Portfolio Snapshots."""
 
-from flask import Flask, jsonify, render_template, request
+import os
 
-from src.aggregator import fetch_all_balances
-from src.config import add_wallet, list_wallets, remove_wallet
-from src.snapshot import list_snapshots, save_snapshot
+from flask import Flask, jsonify, render_template, request, send_from_directory
+
+from src.config import add_url, get_email_config, list_urls, remove_url, set_email_config
+from src.screenshots import get_screenshots_dir, list_saved_screenshots, take_all_screenshots
+from src.emailer import send_screenshots_email
 
 app = Flask(__name__)
 
@@ -15,69 +17,118 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/wallets", methods=["GET"])
-def get_wallets():
-    return jsonify(list_wallets())
+# --- URL management ---
+
+@app.route("/api/urls", methods=["GET"])
+def get_urls():
+    return jsonify(list_urls())
 
 
-@app.route("/api/wallets", methods=["POST"])
-def post_wallet():
+@app.route("/api/urls", methods=["POST"])
+def post_url():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
+    url = data.get("url", "").strip()
     label = data.get("label", "").strip()
-    address = data.get("address", "").strip()
-    wallet_type = data.get("type", "").strip()
 
-    if not address:
-        return jsonify({"error": "Address is required"}), 400
-    if wallet_type not in ("evm", "solana"):
-        return jsonify({"error": "Type must be 'evm' or 'solana'"}), 400
-    if not label:
-        label = address[:12] + "..."
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
 
     try:
-        add_wallet(label, address, wallet_type)
-        return jsonify({"ok": True, "label": label, "address": address, "type": wallet_type})
+        clean_url = add_url(url, label)
+        return jsonify({"ok": True, "url": clean_url})
     except ValueError as e:
-        return jsonify({"error": str(e)}), 409
+        return jsonify({"error": str(e)}), 400
 
 
-@app.route("/api/wallets", methods=["DELETE"])
-def delete_wallet():
+@app.route("/api/urls", methods=["DELETE"])
+def delete_url():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    address = data.get("address", "").strip()
-    if not address:
-        return jsonify({"error": "Address is required"}), 400
+    url = data.get("url", "").strip()
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
 
     try:
-        remove_wallet(address)
+        remove_url(url)
         return jsonify({"ok": True})
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
 
 
-@app.route("/api/balances", methods=["GET"])
-def get_balances():
-    data = fetch_all_balances()
-    return jsonify(data)
+# --- Screenshots ---
+
+@app.route("/api/screenshots", methods=["GET"])
+def get_screenshots():
+    return jsonify(list_saved_screenshots())
 
 
-@app.route("/api/snapshot", methods=["POST"])
-def post_snapshot():
-    data = fetch_all_balances()
-    filepath = save_snapshot(data)
-    filename = filepath.rsplit("/", 1)[-1]
-    return jsonify({"ok": True, "file": filename, "data": data})
+@app.route("/api/screenshots/capture", methods=["POST"])
+def capture_screenshots():
+    results = take_all_screenshots()
+    return jsonify({"ok": True, "results": results})
 
 
-@app.route("/api/snapshots", methods=["GET"])
-def get_snapshots():
-    return jsonify(list_snapshots())
+@app.route("/api/screenshots/capture-and-email", methods=["POST"])
+def capture_and_email():
+    results = take_all_screenshots()
+    successful = [r for r in results if r.get("path")]
+
+    if not successful:
+        return jsonify({"error": "No screenshots were captured"}), 500
+
+    try:
+        send_screenshots_email(results)
+        return jsonify({
+            "ok": True,
+            "message": f"Emailed {len(successful)} screenshot(s)",
+            "results": results,
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Email failed: {e}"}), 500
+
+
+@app.route("/screenshots/<path:filename>")
+def serve_screenshot(filename):
+    screenshots_dir = get_screenshots_dir()
+    return send_from_directory(screenshots_dir, filename)
+
+
+# --- Email settings ---
+
+@app.route("/api/email-settings", methods=["GET"])
+def get_email_settings():
+    cfg = get_email_config()
+    # Mask the password for display
+    masked = dict(cfg)
+    if masked.get("smtp_password"):
+        masked["smtp_password"] = masked["smtp_password"]
+    return jsonify(masked)
+
+
+@app.route("/api/email-settings", methods=["POST"])
+def post_email_settings():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    try:
+        set_email_config(
+            recipient=data.get("recipient", ""),
+            smtp_user=data.get("smtp_user", ""),
+            smtp_password=data.get("smtp_password", ""),
+            smtp_host=data.get("smtp_host", "smtp.gmail.com"),
+            smtp_port=data.get("smtp_port", 587),
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

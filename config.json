@@ -1,16 +1,12 @@
 {
-  "wallets": [
-    {
-      "label": "Main EVM Wallet",
-      "address": "0xYOUR_EVM_ADDRESS_HERE",
-      "type": "evm"
-    },
-    {
-      "label": "Main Solana Wallet",
-      "address": "YOUR_SOLANA_ADDRESS_HERE",
-      "type": "solana"
-    }
-  ],
-  "snapshot_dir": "snapshots",
-  "timezone": "UTC"
+  "urls": [],
+  "email": {
+    "recipient": "",
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_user": "",
+    "smtp_password": ""
+  },
+  "screenshots_dir": "screenshots",
+  "snapshot_dir": "snapshots"
 }
