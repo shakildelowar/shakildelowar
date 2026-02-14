@@ -507,7 +507,7 @@ def _evm_balance_ankr(address: str) -> dict | None:
             tokens = []
             for asset in assets:
                 usd = float(asset.get("balanceUsd", 0))
-                if usd > 0.01:
+                if usd >= HOLDINGS_THRESHOLD:
                     tokens.append({
                         "symbol": asset.get("tokenSymbol", "???"),
                         "name": asset.get("tokenName", "Unknown"),
@@ -682,8 +682,7 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
 
         tokens = _fetch_blockscout_tokens(address, chain_name, blockscout_url)
         for t in tokens:
-            if t["usd"] > 0.01:
-                evm_tokens.append(t)
+            if t["usd"] > 0.001:
                 total_usd += t["usd"]
                 # Add to chain total
                 existing = next((c for c in chains if c["name"] == chain_name.upper()), None)
@@ -691,6 +690,9 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
                     existing["usd"] += t["usd"]
                 else:
                     chains.append({"name": chain_name.upper(), "usd": t["usd"]})
+                # Only display tokens >= $1
+                if t["usd"] >= HOLDINGS_THRESHOLD:
+                    evm_tokens.append(t)
 
     if not chains and not evm_tokens:
         return None

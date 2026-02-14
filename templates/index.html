@@ -642,42 +642,19 @@
           if (w.error) {
             inner = '<div style="color:#f6465d;padding:12px 0;font-size:0.85rem;">' + esc(w.error) + '</div>';
           } else if (w.type === 'solana') {
-            // Holdings section
-            let holdingsRows = [];
+            let rows = [];
             if (w.sol_balance != null) {
-              holdingsRows.push(tokenRowHTML('SOL', 'Solana', w.sol_balance, w.sol_price, w.sol_usd));
+              rows.push(tokenRowHTML('SOL', 'Solana', w.sol_balance, w.sol_price, w.sol_usd));
             }
             if (w.tokens && w.tokens.length) {
               w.tokens.forEach(t => {
-                holdingsRows.push(tokenRowHTML(t.symbol, t.name || '', t.amount, t.price, t.usd));
+                rows.push(tokenRowHTML(t.symbol, t.name || '', t.amount, t.price, t.usd));
               });
             }
 
-            let holdingsTotal = (w.sol_usd || 0);
-            if (w.tokens) w.tokens.forEach(t => holdingsTotal += (t.usd || 0));
-
-            if (holdingsRows.length) {
-              inner += '<div class="section-header">'
-                + '<div class="section-title">Holdings</div>'
-                + '<div class="section-total">' + formatUSD(holdingsTotal) + '</div></div>';
-              inner += tokenTableHTML(holdingsRows);
-            }
-
-            // Other section
-            if (w.other_tokens && w.other_tokens.length) {
-              let otherTotal = 0;
-              w.other_tokens.forEach(t => otherTotal += (t.usd || 0));
-              let otherRows = [];
-              w.other_tokens.forEach(t => {
-                otherRows.push(tokenRowHTML(t.symbol, t.name || '', t.amount, t.price, t.usd));
-              });
-              inner += '<div class="section-header" style="margin-top:16px;padding-top:16px;border-top:1px solid #1e2329;">'
-                + '<div class="section-title">Other</div>'
-                + '<div class="section-total">' + formatUSD(otherTotal) + '</div></div>';
-              inner += tokenTableHTML(otherRows);
-            }
-
-            if (!holdingsRows.length && !(w.other_tokens && w.other_tokens.length)) {
+            if (rows.length) {
+              inner = tokenTableHTML(rows);
+            } else {
               inner = '<div style="color:#5e6673;font-size:0.85rem;padding:12px 0;">No tokens found</div>';
             }
           } else if (w.type === 'evm') {
