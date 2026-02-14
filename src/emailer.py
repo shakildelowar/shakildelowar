@@ -51,8 +51,8 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
           <div style="flex:1;text-align:right;">Value</div>
         </div>"""
 
-            # SOL row
-            if w.get("sol_balance") is not None:
+            # SOL row (only if >= $1)
+            if w.get("sol_balance") is not None and w.get("sol_usd", 0) >= 1:
                 html += f"""
         <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">
           <div style="flex:2;"><div style="font-weight:600;font-size:0.9rem;">SOL</div><div style="color:#8b949e;font-size:0.75rem;">Solana</div></div>

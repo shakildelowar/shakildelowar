@@ -183,7 +183,8 @@ def fetch_solana_balance(address: str) -> dict:
     sol_price = prices.get(SOL_MINT, 0)
     sol_usd = (sol or 0) * sol_price
 
-    # Build token list - include ALL tokens with any balance
+    # Build token list - only include tokens worth >= $1
+    MIN_USD_DISPLAY = 1.00
     token_list = []
     total_tokens_usd = 0.0
 
@@ -192,8 +193,13 @@ def fetch_solana_balance(address: str) -> dict:
         amount = t["amount"]
         price = prices.get(mint, 0)
         usd = amount * price
-        meta = metadata.get(mint, {})
+        total_tokens_usd += usd
 
+        # Skip tokens worth less than $1
+        if usd < MIN_USD_DISPLAY:
+            continue
+
+        meta = metadata.get(mint, {})
         token_list.append({
             "mint": mint,
             "symbol": meta.get("symbol", mint[:8] + "..."),
@@ -202,10 +208,9 @@ def fetch_solana_balance(address: str) -> dict:
             "price": price,
             "usd": usd,
         })
-        total_tokens_usd += usd
 
-    # Sort: priced tokens first by USD desc, then unpriced tokens by amount desc
-    token_list.sort(key=lambda x: (x["usd"] > 0, x["usd"], x["amount"]), reverse=True)
+    # Sort by USD value descending
+    token_list.sort(key=lambda x: x["usd"], reverse=True)
 
     return {
         "address": address,

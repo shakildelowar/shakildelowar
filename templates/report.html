@@ -127,7 +127,7 @@
         <div class="col-right">Price</div>
         <div class="col-right">Value</div>
       </div>
-      {% if wallet.sol_balance is not none %}
+      {% if wallet.sol_balance is not none and wallet.sol_usd >= 1 %}
       <div class="token-row">
         <div>
           <div class="token-symbol">SOL</div>
