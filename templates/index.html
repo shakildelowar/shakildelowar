@@ -3,86 +3,88 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Portfolio Snapshots</title>
+  <title>Portfolio Tracker</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f1117;
+      background: #111214;
       color: #e1e4e8;
       min-height: 100vh;
     }
 
-    .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+    .container { max-width: 960px; margin: 0 auto; padding: 20px 16px; }
 
-    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 6px; }
-    .subtitle { color: #8b949e; font-size: 0.85rem; margin-bottom: 28px; }
+    h1 { font-size: 1.3rem; font-weight: 600; margin-bottom: 20px; color: #fff; }
 
     /* Tabs */
     .tabs {
       display: flex;
-      gap: 4px;
-      margin-bottom: 24px;
-      border-bottom: 1px solid #30363d;
+      gap: 0;
+      margin-bottom: 20px;
+      background: #1a1c1f;
+      border-radius: 10px;
+      padding: 3px;
     }
     .tab {
-      padding: 10px 20px;
+      flex: 1;
+      padding: 9px 16px;
       background: none;
       border: none;
       color: #8b949e;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
+      font-weight: 500;
       cursor: pointer;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      transition: color 0.2s;
+      border-radius: 8px;
+      transition: all 0.2s;
     }
     .tab:hover { color: #e1e4e8; }
-    .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+    .tab.active { color: #fff; background: #2a2d31; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
     /* Cards */
     .card {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: #1a1c1f;
       border-radius: 12px;
       padding: 20px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
-    .card h2 { font-size: 1rem; color: #c9d1d9; margin-bottom: 14px; }
+    .card h2 { font-size: 0.95rem; color: #c9d1d9; margin-bottom: 14px; }
 
     /* Add URL form */
-    .add-form { display: flex; gap: 10px; flex-wrap: wrap; }
+    .add-form { display: flex; gap: 8px; flex-wrap: wrap; }
     .add-form input {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: #111214;
+      border: 1px solid #2a2d31;
       color: #e1e4e8;
       padding: 10px 14px;
       border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       outline: none;
       transition: border-color 0.2s;
     }
-    .add-form input:focus { border-color: #58a6ff; }
-    .add-form input[name="url"] { flex: 1; min-width: 300px; font-family: monospace; }
-    .add-form input[name="label"] { width: 180px; }
+    .add-form input:focus { border-color: #4f8cff; }
+    .add-form input[name="url"] { flex: 1; min-width: 280px; font-family: monospace; }
+    .add-form input[name="label"] { width: 160px; }
 
     /* Buttons */
     .btn {
-      padding: 10px 20px;
+      padding: 9px 18px;
       border: none;
       border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
-      transition: opacity 0.2s;
+      transition: all 0.2s;
     }
     .btn:hover { opacity: 0.85; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-primary { background: #238636; color: #fff; }
-    .btn-danger { background: #da3633; color: #fff; font-size: 0.8rem; padding: 6px 12px; }
-    .btn-blue { background: #1f6feb; color: #fff; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #4f8cff; color: #fff; }
+    .btn-danger { background: transparent; color: #f85149; border: 1px solid #30363d; font-size: 0.8rem; padding: 5px 10px; }
+    .btn-danger:hover { background: #f8514920; }
+    .btn-secondary { background: #2a2d31; color: #e1e4e8; }
 
     /* URL list */
     .url-row {
@@ -96,9 +98,9 @@
 
     .url-badge {
       display: inline-block;
-      padding: 2px 10px;
-      border-radius: 12px;
-      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.65rem;
       font-weight: 600;
       text-transform: uppercase;
       flex-shrink: 0;
@@ -110,73 +112,49 @@
     .url-label { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
     .url-link {
       font-family: monospace;
-      font-size: 0.8rem;
-      color: #8b949e;
+      font-size: 0.75rem;
+      color: #6e7681;
       word-break: break-all;
     }
-    .url-link a { color: #58a6ff; text-decoration: none; }
+    .url-link a { color: #4f8cff; text-decoration: none; }
     .url-link a:hover { text-decoration: underline; }
 
     /* Screenshot gallery */
-    .screenshots-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-    }
+    .screenshots-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
     .screenshot-card {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: #1a1c1f;
       border-radius: 12px;
       overflow: hidden;
     }
-    .screenshot-card .sc-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid #21262d;
-    }
-    .screenshot-card .sc-label { font-weight: 500; font-size: 0.9rem; }
-    .screenshot-card img {
-      width: 100%;
-      display: block;
-      cursor: pointer;
-    }
+    .screenshot-card .sc-header { padding: 12px 16px; border-bottom: 1px solid #21262d; }
+    .screenshot-card .sc-label { font-weight: 500; font-size: 0.85rem; }
+    .screenshot-card img { width: 100%; display: block; cursor: pointer; }
     .screenshot-card img:hover { opacity: 0.9; }
 
     /* Settings form */
     .settings-form { display: flex; flex-direction: column; gap: 12px; }
-    .settings-form label {
-      font-size: 0.85rem;
-      color: #8b949e;
-      display: block;
-      margin-bottom: 4px;
-    }
+    .settings-form label { font-size: 0.8rem; color: #6e7681; display: block; margin-bottom: 4px; }
     .settings-form input {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: #111214;
+      border: 1px solid #2a2d31;
       color: #e1e4e8;
       padding: 10px 14px;
       border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       outline: none;
       width: 100%;
       max-width: 400px;
     }
-    .settings-form input:focus { border-color: #58a6ff; }
+    .settings-form input:focus { border-color: #4f8cff; }
 
-    .empty-state { padding: 40px 20px; text-align: center; color: #484f58; }
-    .actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .empty-state { padding: 40px 20px; text-align: center; color: #484f58; font-size: 0.9rem; }
+    .actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 
     /* Toast */
     .toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      z-index: 1000;
-      transform: translateY(80px);
-      opacity: 0;
-      transition: all 0.3s;
+      position: fixed; bottom: 24px; right: 24px;
+      padding: 10px 18px; border-radius: 8px; font-size: 0.85rem;
+      z-index: 1000; transform: translateY(80px); opacity: 0; transition: all 0.3s;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
     .toast.success { background: #238636; color: #fff; }
@@ -184,14 +162,9 @@
 
     /* Lightbox */
     .lightbox {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.92);
-      z-index: 2000;
-      justify-content: center;
-      align-items: center;
-      cursor: zoom-out;
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92); z-index: 2000;
+      justify-content: center; align-items: center; cursor: zoom-out;
     }
     .lightbox.open { display: flex; }
     .lightbox img { max-width: 95vw; max-height: 95vh; border-radius: 8px; }
@@ -204,8 +177,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Portfolio Snapshots</h1>
-    <p class="subtitle">Paste DeBank / Jupiter URLs. Get screenshots emailed at end of month.</p>
+    <h1>Portfolio Tracker</h1>
 
     <div class="tabs">
       <button class="tab active" data-tab="urls">URLs</button>
@@ -228,7 +200,7 @@
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
           <h2 style="margin:0;">Tracked URLs</h2>
-          <span id="urlCount" style="color:#8b949e;font-size:0.85rem;"></span>
+          <span id="urlCount" style="color:#6e7681;font-size:0.8rem;"></span>
         </div>
         <div id="urlList">
           <div class="empty-state">Loading...</div>
@@ -239,22 +211,22 @@
     <!-- Balances Tab -->
     <div class="tab-content" id="tab-balances">
       <div class="actions">
-        <button class="btn btn-blue" onclick="fetchBalances()" id="balanceBtn">Fetch Balances</button>
-        <a class="btn btn-primary" href="/report" target="_blank" style="text-decoration:none;display:inline-block;">View Full Report</a>
+        <button class="btn btn-primary" onclick="fetchBalances()" id="balanceBtn">Fetch Balances</button>
+        <a class="btn btn-secondary" href="/report" target="_blank" style="text-decoration:none;display:inline-block;">View Report</a>
       </div>
       <div id="balancesList">
-        <div class="empty-state">Click "Fetch Balances" to pull live wallet data.</div>
+        <div class="empty-state">Click "Fetch Balances" to load wallet data.</div>
       </div>
     </div>
 
     <!-- Screenshots Tab -->
     <div class="tab-content" id="tab-screenshots">
       <div class="actions">
-        <button class="btn btn-blue" onclick="captureScreenshots()" id="captureBtn">Capture All Now</button>
-        <button class="btn btn-primary" onclick="captureAndEmail()" id="emailBtn">Capture &amp; Email Now</button>
+        <button class="btn btn-secondary" onclick="captureScreenshots()" id="captureBtn">Capture All</button>
+        <button class="btn btn-primary" onclick="captureAndEmail()" id="emailBtn">Capture &amp; Email</button>
       </div>
       <div id="screenshotsList" class="screenshots-grid">
-        <div class="empty-state">No screenshots yet. Click "Capture All Now".</div>
+        <div class="empty-state">No screenshots yet.</div>
       </div>
     </div>
 
@@ -262,9 +234,9 @@
     <div class="tab-content" id="tab-settings">
       <div class="card">
         <h2>Email Settings</h2>
-        <p style="color:#8b949e;font-size:0.85rem;margin-bottom:16px;">
-          Configure where screenshots get emailed. For Gmail, use an
-          <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#58a6ff;">App Password</a>.
+        <p style="color:#6e7681;font-size:0.8rem;margin-bottom:16px;">
+          Configure where reports get emailed. For Gmail, use an
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#4f8cff;">App Password</a>.
         </p>
         <form class="settings-form" id="emailForm">
           <div>
@@ -287,7 +259,7 @@
             <label>SMTP Port</label>
             <input type="number" name="smtp_port" value="587">
           </div>
-          <button type="submit" class="btn btn-primary" style="align-self:flex-start;margin-top:8px;">Save Settings</button>
+          <button type="submit" class="btn btn-primary" style="align-self:flex-start;margin-top:8px;">Save</button>
         </form>
       </div>
     </div>
@@ -354,7 +326,7 @@
       document.getElementById('urlCount').textContent = urls.length + ' URL' + (urls.length !== 1 ? 's' : '');
 
       if (!urls.length) {
-        container.innerHTML = '<div class="empty-state">No URLs added yet. Paste a DeBank or Jupiter link above.</div>';
+        container.innerHTML = '<div class="empty-state">No URLs added yet.</div>';
         return;
       }
 
@@ -434,14 +406,14 @@
           const ok = data.results.filter(r => !r.error).length;
           const failed = data.results.filter(r => r.error);
           if (failed.length) {
-            toast('Captured ' + ok + ', ' + failed.length + ' failed: ' + failed[0].error, ok ? 'success' : 'error');
+            toast('Captured ' + ok + ', ' + failed.length + ' failed', ok ? 'success' : 'error');
           } else {
             toast('Captured ' + ok + ' screenshot(s)');
           }
           loadScreenshots();
         } else { toast(data.error || 'Failed', 'error'); }
       } catch (err) { toast('Capture failed', 'error'); }
-      finally { btn.disabled = false; btn.textContent = 'Capture All Now'; }
+      finally { btn.disabled = false; btn.textContent = 'Capture All'; }
     }
 
     async function captureAndEmail() {
@@ -454,7 +426,7 @@
         if (res.ok) { toast(data.message || 'Sent!'); loadScreenshots(); }
         else { toast(data.error || 'Failed', 'error'); }
       } catch (err) { toast('Failed', 'error'); }
-      finally { btn.disabled = false; btn.textContent = 'Capture & Email Now'; }
+      finally { btn.disabled = false; btn.textContent = 'Capture & Email'; }
     }
 
     async function loadScreenshots() {
@@ -464,7 +436,7 @@
         const container = document.getElementById('screenshotsList');
 
         if (!files.length) {
-          container.innerHTML = '<div class="empty-state">No screenshots yet. Click "Capture All Now".</div>';
+          container.innerHTML = '<div class="empty-state">No screenshots yet.</div>';
           return;
         }
 
@@ -536,7 +508,7 @@
 
     function tokenTable(rows) {
       let html = '<div style="margin-top:4px;">'
-        + '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #30363d;color:#8b949e;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;">'
+        + '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #2a2d31;color:#6e7681;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;">'
         + '<div>Asset</div><div style="text-align:right;">Balance</div><div style="text-align:right;">Price</div><div style="text-align:right;">Value</div></div>';
       html += rows.join('');
       html += '</div>';
@@ -544,12 +516,12 @@
     }
 
     function tokenRow(symbol, name, amount, price, usd) {
-      return '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">'
+      return '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #1e2024;align-items:center;">'
         + '<div><div style="font-weight:600;font-size:0.9rem;">' + esc(symbol) + '</div>'
-        + '<div style="color:#8b949e;font-size:0.75rem;">' + esc(name) + '</div></div>'
-        + '<div style="text-align:right;color:#c9d1d9;font-size:0.9rem;">' + formatAmount(amount) + '</div>'
-        + '<div style="text-align:right;color:#8b949e;font-size:0.85rem;">' + formatPrice(price) + '</div>'
-        + '<div style="text-align:right;font-weight:600;font-size:0.9rem;">' + formatUSD(usd) + '</div></div>';
+        + '<div style="color:#6e7681;font-size:0.7rem;">' + esc(name) + '</div></div>'
+        + '<div style="text-align:right;color:#c9d1d9;font-size:0.85rem;">' + formatAmount(amount) + '</div>'
+        + '<div style="text-align:right;color:#6e7681;font-size:0.85rem;">' + formatPrice(price) + '</div>'
+        + '<div style="text-align:right;font-weight:600;font-size:0.85rem;">' + formatUSD(usd) + '</div></div>';
     }
 
     async function fetchBalances() {
@@ -557,7 +529,7 @@
       btn.disabled = true;
       btn.textContent = 'Fetching...';
       const container = document.getElementById('balancesList');
-      container.innerHTML = '<div class="empty-state">Loading balances from blockchain...</div>';
+      container.innerHTML = '<div class="empty-state">Loading balances...</div>';
 
       try {
         const res = await fetch('/api/balances');
@@ -574,7 +546,7 @@
           let inner = '';
 
           if (w.error) {
-            inner = '<div style="color:#f85149;padding:8px 0;">Error: ' + esc(w.error) + '</div>';
+            inner = '<div style="color:#f85149;padding:8px 0;font-size:0.85rem;">' + esc(w.error) + '</div>';
           } else if (w.type === 'solana') {
             // Holdings section (SOL + tokens >= $1)
             let holdingsRows = [];
@@ -587,18 +559,17 @@
               });
             }
 
-            // Calculate holdings total
             let holdingsTotal = (w.sol_usd || 0);
             if (w.tokens) w.tokens.forEach(t => holdingsTotal += (t.usd || 0));
 
             if (holdingsRows.length) {
               inner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:4px;">'
-                + '<div style="font-weight:600;font-size:0.9rem;">Holdings</div>'
-                + '<div style="font-weight:600;font-size:0.9rem;">' + formatUSD(holdingsTotal) + '</div></div>';
+                + '<div style="font-weight:600;font-size:0.85rem;color:#8b949e;">Holdings</div>'
+                + '<div style="font-weight:600;font-size:0.85rem;">' + formatUSD(holdingsTotal) + '</div></div>';
               inner += tokenTable(holdingsRows);
             }
 
-            // Other section (tokens < $1)
+            // Other section
             if (w.other_tokens && w.other_tokens.length) {
               let otherTotal = 0;
               w.other_tokens.forEach(t => otherTotal += (t.usd || 0));
@@ -606,21 +577,28 @@
               w.other_tokens.forEach(t => {
                 otherRows.push(tokenRow(t.symbol, t.name || '', t.amount, t.price, t.usd));
               });
-              inner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:16px;border-top:1px solid #30363d;">'
-                + '<div style="font-weight:600;font-size:0.9rem;">Other</div>'
-                + '<div style="font-weight:600;font-size:0.9rem;">' + formatUSD(otherTotal) + '</div></div>';
+              inner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:12px;border-top:1px solid #2a2d31;">'
+                + '<div style="font-weight:600;font-size:0.85rem;color:#8b949e;">Other</div>'
+                + '<div style="font-weight:600;font-size:0.85rem;">' + formatUSD(otherTotal) + '</div></div>';
               inner += tokenTable(otherRows);
             }
 
             if (!holdingsRows.length && !(w.other_tokens && w.other_tokens.length)) {
               inner = '<div style="color:#484f58;font-size:0.85rem;padding:8px 0;">No tokens found</div>';
             }
-          } else if (w.type === 'evm' && w.chains) {
-            let rows = [];
-            w.chains.forEach(c => {
-              rows.push(tokenRow(c.name, 'Chain', '--', '--', c.usd));
-            });
-            if (rows.length) {
+          } else if (w.type === 'evm') {
+            // EVM: show individual tokens if available, otherwise chains
+            if (w.evm_tokens && w.evm_tokens.length) {
+              let rows = [];
+              w.evm_tokens.forEach(t => {
+                rows.push(tokenRow(t.symbol, t.name || t.chain || '', t.amount, t.price, t.usd));
+              });
+              inner = tokenTable(rows);
+            } else if (w.chains && w.chains.length) {
+              let rows = [];
+              w.chains.forEach(c => {
+                rows.push(tokenRow(c.name, 'Chain', '--', '--', c.usd));
+              });
               inner = tokenTable(rows);
             }
           }
@@ -629,8 +607,8 @@
             + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:12px;border-bottom:1px solid #21262d;">'
             + '<div><span class="url-badge ' + typeClass + '">' + typeName + '</span>'
             + '<div style="font-weight:600;margin-top:4px;">' + esc(w.label || '') + '</div>'
-            + '<div style="font-family:monospace;font-size:0.75rem;color:#8b949e;">' + esc(w.address || '') + '</div></div>'
-            + '<div style="font-size:1.5rem;font-weight:700;color:#3fb950;">' + formatUSD(w.total_usd) + '</div></div>'
+            + '<div style="font-family:monospace;font-size:0.7rem;color:#6e7681;">' + esc(w.address || '') + '</div></div>'
+            + '<div style="font-size:1.4rem;font-weight:700;color:#3fb950;">' + formatUSD(w.total_usd) + '</div></div>'
             + inner + '</div>';
         }).join('');
 

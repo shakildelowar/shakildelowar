@@ -32,6 +32,7 @@ SOL_MINT = "So11111111111111111111111111111111111111112"
 LAMPORTS_PER_SOL = 1_000_000_000
 
 DEBANK_API = "https://api.debank.com/user/total_balance"
+ANKR_MULTICHAIN = "https://rpc.ankr.com/multichain"
 
 # Threshold for splitting tokens into "Holdings" vs "Other"
 HOLDINGS_THRESHOLD = 1.00
@@ -411,68 +412,121 @@ def fetch_solana_balance(address: str) -> dict:
     }
 
 
-def fetch_evm_balance(address: str) -> dict:
-    """Fetch EVM wallet balance from DeBank with retry."""
+def _evm_balance_ankr(address: str) -> dict | None:
+    """Fetch EVM balance via Ankr multichain API (free, no key needed)."""
+    try:
+        resp = requests.post(ANKR_MULTICHAIN, json={
+            "jsonrpc": "2.0", "id": 1,
+            "method": "ankr_getAccountBalance",
+            "params": {"walletAddress": address.lower()},
+        }, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+        if "error" in data:
+            print(f"[Ankr] Error: {data['error']}")
+            return None
+
+        assets = data.get("result", {}).get("assets", [])
+        total = float(data.get("result", {}).get("totalBalanceUsd", 0))
+
+        # Group by blockchain
+        chain_totals = {}
+        for asset in assets:
+            chain = asset.get("blockchain", "unknown")
+            usd = float(asset.get("balanceUsd", 0))
+            if chain not in chain_totals:
+                chain_totals[chain] = {"name": chain.upper(), "usd": 0}
+            chain_totals[chain]["usd"] += usd
+
+        chains = [v for v in chain_totals.values() if v["usd"] > 0.01]
+        chains.sort(key=lambda x: x["usd"], reverse=True)
+
+        # Also build token list for detail view
+        tokens = []
+        for asset in assets:
+            usd = float(asset.get("balanceUsd", 0))
+            if usd > 0.01:
+                tokens.append({
+                    "symbol": asset.get("tokenSymbol", "???"),
+                    "name": asset.get("tokenName", "Unknown"),
+                    "amount": float(asset.get("balance", 0)),
+                    "price": float(asset.get("tokenPrice", 0)),
+                    "usd": usd,
+                    "chain": asset.get("blockchain", ""),
+                })
+        tokens.sort(key=lambda x: x["usd"], reverse=True)
+
+        print(f"[Ankr] Found {len(assets)} assets, total ${total:.2f}")
+        return {
+            "address": address,
+            "type": "evm",
+            "chains": chains,
+            "evm_tokens": tokens,
+            "total_usd": total,
+            "error": None,
+        }
+    except Exception as e:
+        print(f"[Ankr] Failed: {e}")
+        return None
+
+
+def _evm_balance_debank(address: str) -> dict | None:
+    """Fallback: Fetch EVM balance via DeBank API."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                        "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
         "Accept": "application/json",
         "Referer": f"https://debank.com/profile/{address}",
     }
+    try:
+        resp = requests.get(
+            DEBANK_API,
+            params={"addr": address.lower()},
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", {})
+        total = data.get("total_usd_value", 0.0)
+        chains = []
+        for chain in data.get("chain_list", []):
+            usd = chain.get("usd_value", 0)
+            if usd > 0.01:
+                chains.append({
+                    "name": chain.get("name", "Unknown"),
+                    "usd": usd,
+                })
+        chains.sort(key=lambda x: x["usd"], reverse=True)
+        return {
+            "address": address,
+            "type": "evm",
+            "chains": chains,
+            "evm_tokens": [],
+            "total_usd": total,
+            "error": None,
+        }
+    except Exception as e:
+        print(f"[DeBank] Failed: {e}")
+        return None
 
-    last_error = None
-    for attempt in range(3):
-        try:
-            if attempt > 0:
-                time.sleep(2 * attempt)  # 2s, 4s backoff
-                print(f"[DeBank] Retry {attempt + 1} for {address[:10]}...")
 
-            resp = requests.get(
-                DEBANK_API,
-                params={"addr": address.lower()},
-                headers=headers,
-                timeout=15,
-            )
-            resp.raise_for_status()
-            data = resp.json().get("data", {})
+def fetch_evm_balance(address: str) -> dict:
+    """Fetch EVM wallet balance. Tries Ankr first, DeBank as fallback."""
+    result = _evm_balance_ankr(address)
+    if result:
+        return result
 
-            total = data.get("total_usd_value", 0.0)
-            chains = []
-            for chain in data.get("chain_list", []):
-                usd = chain.get("usd_value", 0)
-                if usd > 0.01:
-                    chains.append({
-                        "id": chain.get("community_id") or chain.get("id", "?"),
-                        "name": chain.get("name", "Unknown"),
-                        "usd": usd,
-                        "logo": chain.get("logo_url", ""),
-                    })
-
-            chains.sort(key=lambda x: x["usd"], reverse=True)
-
-            return {
-                "address": address,
-                "type": "evm",
-                "chains": chains,
-                "total_usd": total,
-                "error": None,
-            }
-        except requests.exceptions.HTTPError as e:
-            last_error = e
-            if e.response is not None and e.response.status_code == 429:
-                print(f"[DeBank] Rate limited (429), will retry...")
-                continue
-            break
-        except Exception as e:
-            last_error = e
-            break
+    result = _evm_balance_debank(address)
+    if result:
+        return result
 
     return {
         "address": address,
         "type": "evm",
         "chains": [],
+        "evm_tokens": [],
         "total_usd": 0,
-        "error": "DeBank API rate limited. Try again in a minute.",
+        "error": "Could not fetch EVM balance. Try again later.",
     }
 
 
