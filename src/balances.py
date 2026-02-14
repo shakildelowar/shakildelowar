@@ -11,19 +11,21 @@ SOLANA_RPCS = [
     "https://solana.drpc.org",
 ]
 
-# Well-known Solana token mints to query individually as fallback
-KNOWN_MINTS = [
-    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
-    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  # USDT
-    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",   # JUP
-    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",  # BONK
-    "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",   # JTO
-    "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",  # WETH
-    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",   # mSOL
-    "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj",  # stSOL
-    "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",   # bSOL
-    "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof",    # RNDR
-]
+# Well-known token registry: mint -> {symbol, name, stable_price}
+# stable_price is used as a last-resort fallback when all price APIs fail
+KNOWN_TOKENS = {
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": {"symbol": "USDC", "name": "USD Coin", "stable_price": 1.0},
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": {"symbol": "USDT", "name": "Tether USD", "stable_price": 1.0},
+    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": {"symbol": "JUP", "name": "Jupiter"},
+    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": {"symbol": "BONK", "name": "Bonk"},
+    "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL": {"symbol": "JTO", "name": "Jito"},
+    "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs": {"symbol": "WETH", "name": "Wrapped Ether"},
+    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So": {"symbol": "mSOL", "name": "Marinade SOL"},
+    "7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj": {"symbol": "stSOL", "name": "Lido Staked SOL"},
+    "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1": {"symbol": "bSOL", "name": "BlazeStake SOL"},
+    "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof": {"symbol": "RNDR", "name": "Render Token"},
+}
+KNOWN_MINTS = list(KNOWN_TOKENS.keys())
 JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
 COINGECKO_SOL_PRICE = "https://api.coingecko.com/api/v3/simple/price"
 SOL_MINT = "So11111111111111111111111111111111111111112"
@@ -223,7 +225,7 @@ def _spl_tokens(address: str) -> list[dict]:
 
 
 def _token_prices(mints: list[str]) -> dict[str, float]:
-    """Get prices from Jupiter, with CoinGecko fallback for SOL."""
+    """Get prices from Jupiter, with CoinGecko fallback for SOL and hardcoded stablecoin prices."""
     prices = {}
 
     # Jupiter Price API
@@ -239,8 +241,9 @@ def _token_prices(mints: list[str]) -> dict[str, float]:
             for m, info in data.items():
                 if info.get("price"):
                     prices[m] = float(info["price"])
-        except Exception:
-            pass
+            print(f"[Prices] Jupiter returned {len(prices)} price(s)")
+        except Exception as e:
+            print(f"[Prices] Jupiter failed: {e}")
 
     # Fallback: get SOL price from CoinGecko if Jupiter didn't return it
     if SOL_MINT not in prices:
@@ -254,47 +257,67 @@ def _token_prices(mints: list[str]) -> dict[str, float]:
             sol_price = resp.json().get("solana", {}).get("usd", 0)
             if sol_price:
                 prices[SOL_MINT] = float(sol_price)
-        except Exception:
-            pass
+                print(f"[Prices] CoinGecko SOL: ${sol_price}")
+        except Exception as e:
+            print(f"[Prices] CoinGecko also failed: {e}")
+
+    # Last resort: use hardcoded stablecoin prices for any missing known tokens
+    for mint in mints:
+        if mint not in prices and mint in KNOWN_TOKENS:
+            stable = KNOWN_TOKENS[mint].get("stable_price")
+            if stable:
+                prices[mint] = stable
+                print(f"[Prices] Using hardcoded price for {KNOWN_TOKENS[mint]['symbol']}: ${stable}")
 
     return prices
 
 
 def _token_metadata(mints: list[str]) -> dict[str, dict]:
-    """Get token names/symbols from Jupiter token list."""
+    """Get token names/symbols. Uses hardcoded registry + Jupiter API."""
     meta = {}
     # Always include SOL
     meta[SOL_MINT] = {"symbol": "SOL", "name": "Solana"}
 
+    # Start with hardcoded known tokens (always works)
+    for mint in mints:
+        if mint in KNOWN_TOKENS:
+            meta[mint] = {
+                "symbol": KNOWN_TOKENS[mint]["symbol"],
+                "name": KNOWN_TOKENS[mint]["name"],
+            }
+
     if not mints:
         return meta
 
-    try:
-        resp = requests.get("https://tokens.jup.ag/tokens?tags=verified", timeout=10)
-        resp.raise_for_status()
-        for token in resp.json():
-            if token.get("address") in mints:
-                meta[token["address"]] = {
-                    "symbol": token.get("symbol", "???"),
-                    "name": token.get("name", "Unknown"),
-                }
-    except Exception:
-        pass
-
-    # Individual lookup for unverified tokens (like pumpfun tokens)
+    # Try Jupiter verified token list to get any we missed
     unknown_mints = [m for m in mints if m not in meta]
     if unknown_mints:
-        for mint in unknown_mints[:20]:
-            try:
-                resp = requests.get(f"https://tokens.jup.ag/token/{mint}", timeout=5)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    meta[mint] = {
-                        "symbol": data.get("symbol", mint[:6] + "..."),
-                        "name": data.get("name", "Unknown"),
+        try:
+            resp = requests.get("https://tokens.jup.ag/tokens?tags=verified", timeout=10)
+            resp.raise_for_status()
+            for token in resp.json():
+                addr = token.get("address")
+                if addr in unknown_mints:
+                    meta[addr] = {
+                        "symbol": token.get("symbol", "???"),
+                        "name": token.get("name", "Unknown"),
                     }
-            except Exception:
-                pass
+        except Exception as e:
+            print(f"[Metadata] Jupiter verified list failed: {e}")
+
+    # Individual lookup for still-unknown tokens (pumpfun etc.)
+    still_unknown = [m for m in mints if m not in meta]
+    for mint in still_unknown[:20]:
+        try:
+            resp = requests.get(f"https://tokens.jup.ag/token/{mint}", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                meta[mint] = {
+                    "symbol": data.get("symbol", mint[:6] + "..."),
+                    "name": data.get("name", "Unknown"),
+                }
+        except Exception:
+            pass
 
     return meta
 
