@@ -16,26 +16,62 @@ def get_screenshots_dir(config_path: str | None = None) -> str:
     return d
 
 
-def take_screenshot(url: str, output_path: str, wait_seconds: int = 20) -> str:
+def take_screenshot(url: str, output_path: str) -> str:
     """Take a full-page screenshot of a URL. Returns the output path."""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
+        # Use a real browser context to avoid bot detection
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+            ],
         )
-        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 900},
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+            java_script_enabled=True,
+            locale="en-US",
+        )
+        page = context.new_page()
+
+        # Hide webdriver flag from detection scripts
+        page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        """)
+
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
-        # Wait for network to settle (API calls to finish loading balances)
+        # Wait for network to settle (API calls fetching wallet data)
         try:
             page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
-            pass  # Some SPAs never fully settle, continue anyway
+            pass
 
-        # Extra wait for JS rendering to complete
-        page.wait_for_timeout(wait_seconds * 1000)
+        # Wait for loading spinners to disappear
+        # Jupiter uses a spinner, DeBank uses loading indicators
+        for selector in [
+            # Common loading indicators
+            "[class*='spinner']",
+            "[class*='loading']",
+            "[class*='skeleton']",
+        ]:
+            try:
+                page.wait_for_selector(selector, state="hidden", timeout=15000)
+            except Exception:
+                pass
+
+        # Final wait for any last renders
+        page.wait_for_timeout(5000)
+
         page.screenshot(path=output_path, full_page=True)
         browser.close()
 
