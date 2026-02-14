@@ -69,8 +69,32 @@ def get_screenshots():
 
 @app.route("/api/screenshots/capture", methods=["POST"])
 def capture_screenshots():
-    results = take_all_screenshots()
-    return jsonify({"ok": True, "results": results})
+    try:
+        results = take_all_screenshots()
+        return jsonify({"ok": True, "results": results})
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "trace": traceback.format_exc(), "results": []}), 500
+
+
+@app.route("/api/debug/test-browser", methods=["GET"])
+def test_browser():
+    """Quick test to see if Playwright/Chromium works at all."""
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+            )
+            page = browser.new_page()
+            page.goto("https://example.com", timeout=15000)
+            title = page.title()
+            browser.close()
+        return jsonify({"ok": True, "title": title})
+    except Exception as e:
+        import traceback
+        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()})
 
 
 @app.route("/api/screenshots/capture-and-email", methods=["POST"])

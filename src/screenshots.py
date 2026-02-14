@@ -23,11 +23,11 @@ def take_screenshot(url: str, output_path: str, wait_seconds: int = 8) -> str:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"],
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
         )
         page = browser.new_page(viewport={"width": 1440, "height": 900})
-        page.goto(url, wait_until="networkidle", timeout=60000)
-        # Extra wait for JS-heavy portfolio pages to finish rendering
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        # Wait for JS-heavy portfolio pages to finish rendering
         page.wait_for_timeout(wait_seconds * 1000)
         page.screenshot(path=output_path, full_page=True)
         browser.close()

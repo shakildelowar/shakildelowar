@@ -420,8 +420,12 @@
         const data = await res.json();
         if (res.ok) {
           const ok = data.results.filter(r => !r.error).length;
-          const fail = data.results.filter(r => r.error).length;
-          toast('Captured ' + ok + ' screenshot(s)' + (fail ? ', ' + fail + ' failed' : ''));
+          const failed = data.results.filter(r => r.error);
+          if (failed.length) {
+            toast('Captured ' + ok + ', ' + failed.length + ' failed: ' + failed[0].error, ok ? 'success' : 'error');
+          } else {
+            toast('Captured ' + ok + ' screenshot(s)');
+          }
           loadScreenshots();
         } else { toast(data.error || 'Failed', 'error'); }
       } catch (err) { toast('Capture failed', 'error'); }
