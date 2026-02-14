@@ -2,11 +2,13 @@
 """Flask web server for Portfolio Snapshots."""
 
 import os
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from src.config import add_url, get_email_config, list_urls, remove_url, set_email_config
 from src.screenshots import get_screenshots_dir, list_saved_screenshots, take_all_screenshots
+from src.balances import fetch_all_balances, fetch_balance_for_url
 from src.emailer import send_screenshots_email
 
 app = Flask(__name__)
@@ -29,13 +31,10 @@ def post_url():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
-
     url = data.get("url", "").strip()
     label = data.get("label", "").strip()
-
     if not url:
         return jsonify({"error": "URL is required"}), 400
-
     try:
         clean_url = add_url(url, label)
         return jsonify({"ok": True, "url": clean_url})
@@ -48,16 +47,32 @@ def delete_url():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
-
     url = data.get("url", "").strip()
     if not url:
         return jsonify({"error": "URL is required"}), 400
-
     try:
         remove_url(url)
         return jsonify({"ok": True})
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
+
+
+# --- Balances ---
+
+@app.route("/api/balances", methods=["GET"])
+def get_balances():
+    urls = list_urls()
+    results = fetch_all_balances(urls)
+    return jsonify(results)
+
+
+@app.route("/report")
+def balance_report():
+    """Render a visual balance report page (also used for screenshots)."""
+    urls = list_urls()
+    wallets = fetch_all_balances(urls)
+    now = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
+    return render_template("report.html", wallets=wallets, timestamp=now)
 
 
 # --- Screenshots ---
@@ -77,34 +92,12 @@ def capture_screenshots():
         return jsonify({"error": str(e), "trace": traceback.format_exc(), "results": []}), 500
 
 
-@app.route("/api/debug/test-browser", methods=["GET"])
-def test_browser():
-    """Quick test to see if Playwright/Chromium works at all."""
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-            )
-            page = browser.new_page()
-            page.goto("https://example.com", timeout=15000)
-            title = page.title()
-            browser.close()
-        return jsonify({"ok": True, "title": title})
-    except Exception as e:
-        import traceback
-        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()})
-
-
 @app.route("/api/screenshots/capture-and-email", methods=["POST"])
 def capture_and_email():
     results = take_all_screenshots()
     successful = [r for r in results if r.get("path")]
-
     if not successful:
         return jsonify({"error": "No screenshots were captured"}), 500
-
     try:
         send_screenshots_email(results)
         return jsonify({
@@ -129,10 +122,7 @@ def serve_screenshot(filename):
 @app.route("/api/email-settings", methods=["GET"])
 def get_email_settings():
     cfg = get_email_config()
-    # Mask the password for display
     masked = dict(cfg)
-    if masked.get("smtp_password"):
-        masked["smtp_password"] = masked["smtp_password"]
     return jsonify(masked)
 
 
@@ -141,7 +131,6 @@ def post_email_settings():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
-
     try:
         set_email_config(
             recipient=data.get("recipient", ""),

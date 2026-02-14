@@ -209,6 +209,7 @@
 
     <div class="tabs">
       <button class="tab active" data-tab="urls">URLs</button>
+      <button class="tab" data-tab="balances">Balances</button>
       <button class="tab" data-tab="screenshots">Screenshots</button>
       <button class="tab" data-tab="settings">Settings</button>
     </div>
@@ -232,6 +233,17 @@
         <div id="urlList">
           <div class="empty-state">Loading...</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Balances Tab -->
+    <div class="tab-content" id="tab-balances">
+      <div class="actions">
+        <button class="btn btn-blue" onclick="fetchBalances()" id="balanceBtn">Fetch Balances</button>
+        <a class="btn btn-primary" href="/report" target="_blank" style="text-decoration:none;display:inline-block;">View Full Report</a>
+      </div>
+      <div id="balancesList">
+        <div class="empty-state">Click "Fetch Balances" to pull live wallet data.</div>
       </div>
     </div>
 
@@ -498,6 +510,76 @@
         else toast('Failed to save', 'error');
       } catch (err) { toast('Network error', 'error'); }
     });
+
+    /* --- Balances --- */
+    function formatUSD(val) {
+      if (val == null) return '--';
+      return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    async function fetchBalances() {
+      const btn = document.getElementById('balanceBtn');
+      btn.disabled = true;
+      btn.textContent = 'Fetching...';
+      const container = document.getElementById('balancesList');
+      container.innerHTML = '<div class="empty-state">Loading balances from blockchain...</div>';
+
+      try {
+        const res = await fetch('/api/balances');
+        const wallets = await res.json();
+
+        if (!wallets.length) {
+          container.innerHTML = '<div class="empty-state">No URLs added yet.</div>';
+          return;
+        }
+
+        container.innerHTML = wallets.map(w => {
+          const typeClass = w.type === 'solana' ? 'badge-jupiter' : 'badge-debank';
+          const typeName = w.type === 'solana' ? 'Solana' : 'EVM';
+          let inner = '';
+
+          if (w.error) {
+            inner = '<div style="color:#f85149;padding:8px 0;">Error: ' + esc(w.error) + '</div>';
+          } else if (w.type === 'solana') {
+            if (w.sol_balance != null) {
+              inner += '<div style="background:#1c2128;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;justify-content:space-between;">'
+                + '<div><strong>' + Number(w.sol_balance).toFixed(4) + ' SOL</strong><br><span style="color:#8b949e;">' + formatUSD(w.sol_usd) + '</span></div>'
+                + '<div style="color:#8b949e;font-size:0.8rem;">' + formatUSD(w.sol_price) + '/SOL</div></div>';
+            }
+            if (w.tokens && w.tokens.length) {
+              inner += w.tokens.map(t =>
+                '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #21262d;">'
+                + '<span style="font-weight:500;">' + esc(t.symbol) + '</span>'
+                + '<span style="color:#8b949e;font-size:0.85rem;">' + Number(t.amount).toFixed(4) + '</span>'
+                + '<span style="font-weight:500;">' + formatUSD(t.usd) + '</span></div>'
+              ).join('');
+            }
+          } else if (w.type === 'evm' && w.chains) {
+            inner += w.chains.map(c =>
+              '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #21262d;">'
+              + '<span style="font-weight:500;">' + esc(c.name) + '</span>'
+              + '<span style="font-weight:500;">' + formatUSD(c.usd) + '</span></div>'
+            ).join('');
+          }
+
+          return '<div class="card">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #21262d;">'
+            + '<div><span class="url-badge ' + typeClass + '">' + typeName + '</span>'
+            + '<div style="font-weight:600;margin-top:4px;">' + esc(w.label || '') + '</div>'
+            + '<div style="font-family:monospace;font-size:0.75rem;color:#8b949e;">' + esc(w.address || '') + '</div></div>'
+            + '<div style="font-size:1.4rem;font-weight:700;color:#3fb950;">' + formatUSD(w.total_usd) + '</div></div>'
+            + inner + '</div>';
+        }).join('');
+
+        toast('Balances loaded');
+      } catch (err) {
+        container.innerHTML = '<div class="empty-state">Failed to load balances</div>';
+        toast('Failed to fetch', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Fetch Balances';
+      }
+    }
 
     /* Init */
     loadUrls();

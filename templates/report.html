@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Report</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e1e4e8;
+      padding: 32px;
+    }
+    .report-header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #30363d;
+    }
+    .report-header h1 { font-size: 1.4rem; margin-bottom: 6px; }
+    .report-header .date { color: #8b949e; font-size: 0.85rem; }
+
+    .wallet-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .wallet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #21262d;
+    }
+    .wallet-label { font-weight: 600; font-size: 1rem; }
+    .wallet-address {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+    .wallet-total {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #3fb950;
+    }
+    .wallet-type {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .type-solana { background: #2a1f4e; color: #bc8cff; }
+    .type-evm { background: #1c3a5f; color: #58a6ff; }
+
+    .token-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #21262d;
+    }
+    .token-row:last-child { border-bottom: none; }
+    .token-symbol { font-weight: 500; min-width: 80px; }
+    .token-amount { color: #8b949e; font-size: 0.85rem; text-align: right; }
+    .token-usd { font-weight: 500; min-width: 100px; text-align: right; }
+
+    .chain-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #21262d;
+    }
+    .chain-row:last-child { border-bottom: none; }
+    .chain-name { font-weight: 500; }
+    .chain-usd { font-weight: 500; }
+
+    .sol-highlight {
+      background: #1c2128;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sol-highlight .sol-amount { font-size: 1.1rem; font-weight: 600; }
+    .sol-highlight .sol-usd { color: #8b949e; }
+
+    .error-msg {
+      color: #f85149;
+      font-size: 0.9rem;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <h1>Portfolio Balance Report</h1>
+    <div class="date">{{ timestamp }}</div>
+  </div>
+
+  {% for wallet in wallets %}
+  <div class="wallet-card">
+    <div class="wallet-header">
+      <div>
+        <span class="wallet-type {{ 'type-solana' if wallet.type == 'solana' else 'type-evm' }}">
+          {{ 'Solana' if wallet.type == 'solana' else 'EVM' }}
+        </span>
+        <div class="wallet-label">{{ wallet.label }}</div>
+        <div class="wallet-address">{{ wallet.address }}</div>
+      </div>
+      <div class="wallet-total">${{ "%.2f"|format(wallet.total_usd) }}</div>
+    </div>
+
+    {% if wallet.error %}
+      <div class="error-msg">Error: {{ wallet.error }}</div>
+    {% elif wallet.type == 'solana' %}
+      {% if wallet.sol_balance is not none %}
+      <div class="sol-highlight">
+        <div>
+          <div class="sol-amount">{{ "%.4f"|format(wallet.sol_balance) }} SOL</div>
+          <div class="sol-usd">${{ "%.2f"|format(wallet.sol_usd) }}</div>
+        </div>
+        <div style="color:#8b949e;font-size:0.8rem;">${{ "%.2f"|format(wallet.sol_price) }}/SOL</div>
+      </div>
+      {% endif %}
+      {% for token in wallet.tokens %}
+      <div class="token-row">
+        <div class="token-symbol">{{ token.symbol }}</div>
+        <div class="token-amount">{{ "%.4f"|format(token.amount) }}</div>
+        <div class="token-usd">${{ "%.2f"|format(token.usd) }}</div>
+      </div>
+      {% endfor %}
+      {% if not wallet.tokens %}
+      <div style="color:#484f58;font-size:0.85rem;padding:8px 0;">No SPL tokens</div>
+      {% endif %}
+
+    {% elif wallet.type == 'evm' %}
+      {% for chain in wallet.chains %}
+      <div class="chain-row">
+        <div class="chain-name">{{ chain.name }}</div>
+        <div class="chain-usd">${{ "%.2f"|format(chain.usd) }}</div>
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</body>
+</html>
