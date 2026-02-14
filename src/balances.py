@@ -41,42 +41,56 @@ EVM_CHAINS = {
         "native": "ETH",
         "decimals": 18,
         "coingecko_id": "ethereum",
+        "binance_symbol": "ETHUSDT",
+        "blockscout": "https://eth.blockscout.com",
     },
     "polygon": {
         "rpcs": ["https://polygon-rpc.com", "https://rpc.ankr.com/polygon"],
         "native": "POL",
         "decimals": 18,
-        "coingecko_id": "matic-network",
+        "coingecko_id": "polygon-ecosystem-token",
+        "binance_symbol": "POLUSDT",
+        "blockscout": "https://polygon.blockscout.com",
     },
     "bsc": {
         "rpcs": ["https://bsc-dataseed.binance.org", "https://rpc.ankr.com/bsc"],
         "native": "BNB",
         "decimals": 18,
         "coingecko_id": "binancecoin",
+        "binance_symbol": "BNBUSDT",
+        "blockscout": "https://bsc.blockscout.com",
     },
     "arbitrum": {
         "rpcs": ["https://arb1.arbitrum.io/rpc", "https://rpc.ankr.com/arbitrum"],
         "native": "ETH",
         "decimals": 18,
         "coingecko_id": "ethereum",
+        "binance_symbol": "ETHUSDT",
+        "blockscout": "https://arbitrum.blockscout.com",
     },
     "optimism": {
         "rpcs": ["https://mainnet.optimism.io", "https://rpc.ankr.com/optimism"],
         "native": "ETH",
         "decimals": 18,
         "coingecko_id": "ethereum",
+        "binance_symbol": "ETHUSDT",
+        "blockscout": "https://optimism.blockscout.com",
     },
     "base": {
         "rpcs": ["https://mainnet.base.org", "https://rpc.ankr.com/base"],
         "native": "ETH",
         "decimals": 18,
         "coingecko_id": "ethereum",
+        "binance_symbol": "ETHUSDT",
+        "blockscout": "https://base.blockscout.com",
     },
     "avalanche": {
         "rpcs": ["https://api.avax.network/ext/bc/C/rpc", "https://rpc.ankr.com/avalanche"],
         "native": "AVAX",
         "decimals": 18,
         "coingecko_id": "avalanche-2",
+        "binance_symbol": "AVAXUSDT",
+        "blockscout": None,
     },
 }
 
@@ -520,15 +534,12 @@ def _evm_balance_ankr(address: str) -> dict | None:
     return None
 
 
-def _evm_balance_direct_rpc(address: str) -> dict | None:
-    """Fallback: query each chain's public RPC for native balance."""
-    chains = []
-    evm_tokens = []
-    total_usd = 0
-
-    # Get native token prices from CoinGecko in one call
+def _fetch_evm_prices() -> dict:
+    """Get native EVM token prices from CoinGecko, with Binance fallback."""
     coingecko_ids = list(set(c["coingecko_id"] for c in EVM_CHAINS.values()))
     prices = {}
+
+    # Try CoinGecko first
     try:
         resp = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
@@ -539,20 +550,86 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
         data = resp.json()
         for cg_id, vals in data.items():
             prices[cg_id] = vals.get("usd", 0)
-        print(f"[DirectRPC] Got prices for: {list(prices.keys())}")
+        print(f"[Prices] CoinGecko EVM prices: {prices}")
     except Exception as e:
-        print(f"[DirectRPC] CoinGecko prices failed: {e}")
-        # Try Binance as fallback for ETH price
+        print(f"[Prices] CoinGecko EVM prices failed: {e}")
+
+    # Binance fallback for any missing prices
+    binance_symbols = set()
+    for chain_info in EVM_CHAINS.values():
+        cg_id = chain_info["coingecko_id"]
+        if cg_id not in prices or prices[cg_id] == 0:
+            binance_symbols.add((chain_info["binance_symbol"], cg_id))
+
+    for binance_sym, cg_id in binance_symbols:
         try:
             resp = requests.get(
                 "https://api.binance.com/api/v3/ticker/price",
-                params={"symbol": "ETHUSDT"},
+                params={"symbol": binance_sym},
                 timeout=10,
             )
             resp.raise_for_status()
-            prices["ethereum"] = float(resp.json().get("price", 0))
-        except Exception:
-            pass
+            price = float(resp.json().get("price", 0))
+            if price:
+                prices[cg_id] = price
+                print(f"[Prices] Binance {binance_sym}: ${price}")
+        except Exception as e:
+            print(f"[Prices] Binance {binance_sym} failed: {e}")
+
+    return prices
+
+
+def _fetch_blockscout_tokens(address: str, chain_name: str, blockscout_url: str) -> list[dict]:
+    """Fetch ERC-20 token balances from Blockscout API (free, no key)."""
+    tokens = []
+    try:
+        resp = requests.get(
+            f"{blockscout_url}/api/v2/addresses/{address.lower()}/token-balances",
+            timeout=12,
+            headers={"Accept": "application/json"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        for item in data:
+            token_info = item.get("token", {})
+            raw_value = item.get("value", "0")
+            decimals = int(token_info.get("decimals") or 18)
+            symbol = token_info.get("symbol", "???")
+            name = token_info.get("name", "Unknown")
+            exchange_rate = token_info.get("exchange_rate")
+
+            balance = int(raw_value) / (10 ** decimals) if raw_value else 0
+            if balance < 0.000001:
+                continue
+
+            price = float(exchange_rate) if exchange_rate else 0
+            usd = balance * price
+
+            tokens.append({
+                "symbol": symbol,
+                "name": name,
+                "amount": balance,
+                "price": price,
+                "usd": usd,
+                "chain": chain_name,
+            })
+
+        print(f"[Blockscout] {chain_name}: {len(tokens)} token(s)")
+    except Exception as e:
+        print(f"[Blockscout] {chain_name} failed: {e}")
+
+    return tokens
+
+
+def _evm_balance_direct_rpc(address: str) -> dict | None:
+    """Fallback: query each chain's public RPC for native balance + Blockscout for ERC-20."""
+    chains = []
+    evm_tokens = []
+    total_usd = 0
+
+    prices = _fetch_evm_prices()
+    active_chains = []  # chains where the address has native balance
 
     for chain_name, chain_info in EVM_CHAINS.items():
         for rpc_url in chain_info["rpcs"]:
@@ -572,7 +649,9 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
                 balance = wei / (10 ** chain_info["decimals"])
 
                 if balance < 0.000001:
-                    break  # Got result, but balance is ~0
+                    # Still mark chain as active if Blockscout might have tokens
+                    active_chains.append(chain_name)
+                    break
 
                 price = prices.get(chain_info["coingecko_id"], 0)
                 usd = balance * price
@@ -580,18 +659,38 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
                 chains.append({"name": chain_name.upper(), "usd": usd})
                 evm_tokens.append({
                     "symbol": chain_info["native"],
-                    "name": f"{chain_name.title()} Native",
+                    "name": f"{chain_name.title()}",
                     "amount": balance,
                     "price": price,
                     "usd": usd,
                     "chain": chain_name,
                 })
                 total_usd += usd
+                active_chains.append(chain_name)
                 print(f"[DirectRPC] {chain_name}: {balance:.6f} {chain_info['native']} = ${usd:.2f}")
                 break
             except Exception as e:
                 print(f"[DirectRPC] {chain_name} {rpc_url} failed: {e}")
                 continue
+
+    # Fetch ERC-20 tokens via Blockscout for chains with activity
+    for chain_name in active_chains:
+        chain_info = EVM_CHAINS[chain_name]
+        blockscout_url = chain_info.get("blockscout")
+        if not blockscout_url:
+            continue
+
+        tokens = _fetch_blockscout_tokens(address, chain_name, blockscout_url)
+        for t in tokens:
+            if t["usd"] > 0.01:
+                evm_tokens.append(t)
+                total_usd += t["usd"]
+                # Add to chain total
+                existing = next((c for c in chains if c["name"] == chain_name.upper()), None)
+                if existing:
+                    existing["usd"] += t["usd"]
+                else:
+                    chains.append({"name": chain_name.upper(), "usd": t["usd"]})
 
     if not chains and not evm_tokens:
         return None
