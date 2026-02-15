@@ -7,7 +7,6 @@
     "smtp_user": "",
     "smtp_password": ""
   },
-  "ankr_api_key": "",
   "screenshots_dir": "screenshots",
   "snapshot_dir": "snapshots"
 }

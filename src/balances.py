@@ -1,5 +1,6 @@
 """Fetch wallet balances from Solana RPC, Solscan API, and DeBank API."""
 
+import os
 import time
 import requests
 from urllib.parse import urlparse
@@ -36,13 +37,8 @@ LAMPORTS_PER_SOL = 1_000_000_000
 DEBANK_API = "https://api.debank.com/user/total_balance"
 ANKR_MULTICHAIN = "https://rpc.ankr.com/multichain"
 
-# Module-level Ankr API key (set at startup or via settings)
-_ankr_api_key = ""
-
-
-def set_ankr_key(key: str):
-    global _ankr_api_key
-    _ankr_api_key = key.strip()
+# Ankr API key from environment variable
+_ankr_api_key = os.environ.get("ANKR_API_KEY", "").strip()
 
 # Public RPC endpoints for direct chain queries (ultimate fallback)
 EVM_CHAINS = {

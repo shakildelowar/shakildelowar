@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from src.config import add_url, get_ankr_api_key, get_email_config, list_urls, remove_url, set_ankr_api_key, set_email_config
+from src.config import add_url, get_email_config, list_urls, remove_url, set_email_config
 from src.screenshots import get_screenshots_dir, list_saved_screenshots, take_all_screenshots
-from src.balances import fetch_all_balances, fetch_balance_for_url, set_ankr_key
+from src.balances import fetch_all_balances, fetch_balance_for_url
 from src.emailer import send_screenshots_email
 
 app = Flask(__name__)
@@ -58,24 +58,6 @@ def delete_url():
 
 
 # --- Balances ---
-
-@app.route("/api/ankr-key", methods=["GET"])
-def get_ankr_key():
-    key = get_ankr_api_key()
-    masked = ("*" * (len(key) - 4) + key[-4:]) if len(key) > 4 else ("*" * len(key)) if key else ""
-    return jsonify({"has_key": bool(key), "masked": masked})
-
-
-@app.route("/api/ankr-key", methods=["POST"])
-def post_ankr_key():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-    key = data.get("key", "").strip()
-    set_ankr_api_key(key)
-    set_ankr_key(key)
-    return jsonify({"ok": True})
-
 
 @app.route("/api/balances", methods=["GET"])
 def get_balances():
@@ -161,18 +143,6 @@ def post_email_settings():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-def _load_ankr_key():
-    try:
-        key = get_ankr_api_key()
-        if key:
-            set_ankr_key(key)
-            print(f"[Startup] Ankr API key loaded")
-    except Exception:
-        pass
-
-
-_load_ankr_key()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
