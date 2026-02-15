@@ -39,7 +39,15 @@ ANKR_MULTICHAIN = "https://rpc.ankr.com/multichain"
 # Public RPC endpoints for direct chain queries (ultimate fallback)
 EVM_CHAINS = {
     "ethereum": {
-        "rpcs": ["https://eth.llamarpc.com", "https://cloudflare-eth.com", "https://rpc.ankr.com/eth"],
+        "rpcs": [
+            "https://ethereum-rpc.publicnode.com",
+            "https://eth.drpc.org",
+            "https://1rpc.io/eth",
+            "https://rpc.mevblocker.io",
+            "https://eth.llamarpc.com",
+            "https://cloudflare-eth.com",
+            "https://rpc.ankr.com/eth",
+        ],
         "native": "ETH",
         "decimals": 18,
         "coingecko_id": "ethereum",
@@ -47,7 +55,7 @@ EVM_CHAINS = {
         "blockscout": "https://eth.blockscout.com",
     },
     "polygon": {
-        "rpcs": ["https://polygon-rpc.com", "https://rpc.ankr.com/polygon"],
+        "rpcs": ["https://polygon-bor-rpc.publicnode.com", "https://polygon-rpc.com", "https://rpc.ankr.com/polygon", "https://polygon.drpc.org"],
         "native": "POL",
         "decimals": 18,
         "coingecko_id": "polygon-ecosystem-token",
@@ -55,7 +63,7 @@ EVM_CHAINS = {
         "blockscout": "https://polygon.blockscout.com",
     },
     "bsc": {
-        "rpcs": ["https://bsc-dataseed.binance.org", "https://rpc.ankr.com/bsc"],
+        "rpcs": ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.binance.org", "https://rpc.ankr.com/bsc", "https://bsc.drpc.org"],
         "native": "BNB",
         "decimals": 18,
         "coingecko_id": "binancecoin",
@@ -63,7 +71,7 @@ EVM_CHAINS = {
         "blockscout": "https://bsc.blockscout.com",
     },
     "arbitrum": {
-        "rpcs": ["https://arb1.arbitrum.io/rpc", "https://rpc.ankr.com/arbitrum"],
+        "rpcs": ["https://arbitrum-one-rpc.publicnode.com", "https://arb1.arbitrum.io/rpc", "https://rpc.ankr.com/arbitrum"],
         "native": "ETH",
         "decimals": 18,
         "coingecko_id": "ethereum",
