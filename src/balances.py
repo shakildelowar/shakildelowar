@@ -108,23 +108,17 @@ EVM_CHAINS = {
 HOLDINGS_THRESHOLD = 1.00
 
 
-def _rpc_call(payload: dict, timeout: int = 15) -> dict | None:
-    """Try multiple Solana RPC endpoints with retry, return first successful response."""
-    # Try each RPC twice with a small delay between rounds
-    for attempt in range(2):
-        for rpc in SOLANA_RPCS:
-            try:
-                resp = requests.post(rpc, json=payload, timeout=timeout)
-                resp.raise_for_status()
-                data = resp.json()
-                if "error" not in data:
-                    return data
-                print(f"[RPC] {rpc} returned error: {data.get('error')}")
-            except Exception as e:
-                print(f"[RPC] {rpc} failed: {e}")
-        if attempt == 0:
-            print("[RPC] All endpoints failed, retrying after delay...")
-            time.sleep(1.5)
+def _rpc_call(payload: dict, timeout: int = 6) -> dict | None:
+    """Try multiple Solana RPC endpoints, return first successful response."""
+    for rpc in SOLANA_RPCS:
+        try:
+            resp = requests.post(rpc, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            if "error" not in data:
+                return data
+        except Exception:
+            pass
     return None
 
 
@@ -155,33 +149,17 @@ SOLSCAN_HEADERS = {
 
 
 def _sol_balance(address: str) -> float | None:
-    """Get SOL balance via RPC, with Solscan and Solana FM REST fallbacks."""
-    # Strategy 1: Solana RPC
-    data = _rpc_call({
-        "jsonrpc": "2.0", "id": 1,
-        "method": "getBalance",
-        "params": [address],
-    })
-    if data:
-        lamports = data.get("result", {}).get("value", 0)
-        if lamports > 0:
-            print(f"[RPC] SOL balance: {lamports / LAMPORTS_PER_SOL}")
-            return lamports / LAMPORTS_PER_SOL
-
-    # Strategy 2: Solscan account API (different infrastructure)
+    """Get SOL balance via Solscan first (most reliable), then RPC fallback."""
+    # Strategy 1: Solscan account API (fastest, most reliable from cloud)
     try:
         resp = requests.get(
             f"https://api-v2.solscan.io/v2/account?address={address}",
             headers=SOLSCAN_HEADERS,
-            timeout=15,
+            timeout=8,
         )
         resp.raise_for_status()
-        account_data = resp.json()
-        # Try multiple possible response structures
-        d = account_data.get("data", account_data)
+        d = resp.json().get("data", {})
         sol_lamports = d.get("lamports", 0)
-        if not sol_lamports:
-            sol_lamports = d.get("balance", 0)
         if sol_lamports:
             balance = int(sol_lamports) / LAMPORTS_PER_SOL
             print(f"[Solscan] SOL balance: {balance}")
@@ -189,45 +167,15 @@ def _sol_balance(address: str) -> float | None:
     except Exception as e:
         print(f"[Solscan] Account balance failed: {e}")
 
-    # Strategy 3: Solana FM API
-    try:
-        resp = requests.get(
-            f"https://api.solana.fm/v1/addresses/{address}/balance",
-            timeout=15,
-            headers={"Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        fm_data = resp.json()
-        sol_lamports = fm_data.get("result", {}).get("balance", 0)
-        if not sol_lamports:
-            sol_lamports = fm_data.get("balance", 0)
-        if sol_lamports:
-            balance = int(sol_lamports) / LAMPORTS_PER_SOL
-            print(f"[SolanaFM] SOL balance: {balance}")
-            return balance
-    except Exception as e:
-        print(f"[SolanaFM] Balance failed: {e}")
-
-    # Strategy 4: Ankr Solana RPC (separate from multichain)
-    try:
-        resp = requests.post("https://rpc.ankr.com/solana", json={
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getBalance",
-            "params": [address],
-        }, timeout=15)
-        resp.raise_for_status()
-        ankr_data = resp.json()
-        if "error" not in ankr_data:
-            lamports = ankr_data.get("result", {}).get("value", 0)
-            if lamports > 0:
-                print(f"[Ankr-Solana] SOL balance: {lamports / LAMPORTS_PER_SOL}")
-                return lamports / LAMPORTS_PER_SOL
-    except Exception as e:
-        print(f"[Ankr-Solana] Balance failed: {e}")
-
-    # If RPC returned 0 lamports (might be real 0 balance), return that
+    # Strategy 2: Solana RPC
+    data = _rpc_call({
+        "jsonrpc": "2.0", "id": 1,
+        "method": "getBalance",
+        "params": [address],
+    })
     if data:
-        return 0
+        lamports = data.get("result", {}).get("value", 0)
+        return lamports / LAMPORTS_PER_SOL
 
     return None
 
@@ -248,18 +196,15 @@ def _spl_tokens_via_program(address: str) -> list[dict]:
                 {"programId": program_id},
                 {"encoding": "jsonParsed"},
             ],
-        }, timeout=20)
+        }, timeout=8)
         if data:
             accounts = data.get("result", {}).get("value", [])
-            print(f"[Tokens] {program_id[:8]}... returned {len(accounts)} account(s)")
             for acct in accounts:
                 info = acct["account"]["data"]["parsed"]["info"]
                 mint = info.get("mint", "")
                 ui_amount = info.get("tokenAmount", {}).get("uiAmount", 0)
                 if ui_amount and ui_amount > 0:
                     tokens.append({"mint": mint, "amount": ui_amount})
-        else:
-            print(f"[Tokens] {program_id[:8]}... ALL RPCs failed")
 
     return tokens
 
@@ -267,9 +212,8 @@ def _spl_tokens_via_program(address: str) -> list[dict]:
 def _spl_tokens_by_mint(address: str) -> list[dict]:
     """Fallback: query known token mints individually (lighter calls)."""
     tokens = []
-    print(f"[Tokens] Falling back to individual mint queries...")
-
-    for mint in KNOWN_MINTS:
+    # Only check top 4 known mints to keep it fast
+    for mint in KNOWN_MINTS[:4]:
         data = _rpc_call({
             "jsonrpc": "2.0", "id": 1,
             "method": "getTokenAccountsByOwner",
@@ -278,7 +222,7 @@ def _spl_tokens_by_mint(address: str) -> list[dict]:
                 {"mint": mint},
                 {"encoding": "jsonParsed"},
             ],
-        }, timeout=10)
+        }, timeout=5)
         if data:
             accounts = data.get("result", {}).get("value", [])
             for acct in accounts:
@@ -286,9 +230,6 @@ def _spl_tokens_by_mint(address: str) -> list[dict]:
                 ui_amount = info.get("tokenAmount", {}).get("uiAmount", 0)
                 if ui_amount and ui_amount > 0:
                     tokens.append({"mint": mint, "amount": ui_amount})
-                    print(f"[Tokens] Found {mint[:8]}... = {ui_amount}")
-        # Small delay to avoid rate limiting on sequential calls
-        time.sleep(0.2)
 
     return tokens
 
@@ -303,7 +244,7 @@ def _spl_tokens_via_solscan(address: str) -> list[dict]:
             f"https://api-v2.solscan.io/v2/account/tokens",
             params={"address": address},
             headers=SOLSCAN_HEADERS,
-            timeout=15,
+            timeout=8,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -336,7 +277,7 @@ def _spl_tokens_via_solscan(address: str) -> list[dict]:
                 f"https://api-v2.solscan.io/v2/account/token-accounts",
                 params={"address": address, "type": "token", "page": 1, "page_size": 40},
                 headers=SOLSCAN_HEADERS,
-                timeout=15,
+                timeout=8,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -389,7 +330,7 @@ def _token_prices(mints: list[str]) -> dict[str, float]:
             resp = requests.get(
                 JUPITER_PRICE_API,
                 params={"ids": ",".join(mints)},
-                timeout=15,
+                timeout=8,
             )
             resp.raise_for_status()
             data = resp.json().get("data", {})
@@ -568,19 +509,19 @@ def fetch_solana_balance(address: str) -> dict:
 
 def _evm_balance_ankr(address: str) -> dict | None:
     """Fetch EVM balance via Ankr multichain API with retry."""
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             resp = requests.post(ANKR_MULTICHAIN, json={
                 "jsonrpc": "2.0", "id": 1,
                 "method": "ankr_getAccountBalance",
                 "params": {"walletAddress": address.lower()},
-            }, timeout=20)
+            }, timeout=10)
             resp.raise_for_status()
             data = resp.json()
             if "error" in data:
                 print(f"[Ankr] Error (attempt {attempt+1}): {data['error']}")
-                if attempt < 2:
-                    time.sleep(2 * (attempt + 1))
+                if attempt < 1:
+                    time.sleep(1)
                     continue
                 return None
 
@@ -732,7 +673,7 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
                     "jsonrpc": "2.0", "id": 1,
                     "method": "eth_getBalance",
                     "params": [address.lower(), "latest"],
-                }, timeout=10)
+                }, timeout=6)
                 resp.raise_for_status()
                 data = resp.json()
                 if "error" in data:
@@ -815,7 +756,7 @@ def _evm_balance_debank(address: str) -> dict | None:
             DEBANK_API,
             params={"addr": address.lower()},
             headers=headers,
-            timeout=15,
+            timeout=8,
         )
         resp.raise_for_status()
         data = resp.json().get("data", {})
