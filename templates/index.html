@@ -328,6 +328,24 @@
     <!-- Settings Tab -->
     <div class="tab-content" id="tab-settings">
       <div class="card">
+        <h2>Ankr API Key</h2>
+        <p style="color:#5e6673;font-size:0.8rem;margin-bottom:18px;">
+          Get a free API key from <a href="https://www.ankr.com/rpc/" target="_blank" style="color:#f0b90b;">ankr.com/rpc</a> for full ERC-20 token coverage across all chains.
+          Without it, only native balances (ETH, BNB, etc.) are shown.
+        </p>
+        <form class="settings-form" id="ankrForm">
+          <div>
+            <label>API Key</label>
+            <input type="password" name="ankr_key" placeholder="Paste your Ankr API key" style="max-width:520px;">
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Save</button>
+            <span id="ankrStatus" style="font-size:0.8rem;color:#5e6673;"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
         <h2>Email Settings</h2>
         <p style="color:#5e6673;font-size:0.8rem;margin-bottom:18px;">
           Configure where reports get emailed. For Gmail, use an
@@ -374,7 +392,7 @@
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'screenshots') loadScreenshots();
-        if (btn.dataset.tab === 'settings') loadEmailSettings();
+        if (btn.dataset.tab === 'settings') { loadEmailSettings(); loadAnkrKey(); }
       });
     });
 
@@ -557,6 +575,36 @@
         form.smtp_port.value = data.smtp_port || 587;
       } catch (e) { /* */ }
     }
+
+    /* --- Ankr Key --- */
+    async function loadAnkrKey() {
+      try {
+        const res = await fetch('/api/ankr-key');
+        const data = await res.json();
+        const status = document.getElementById('ankrStatus');
+        if (data.has_key) {
+          status.textContent = 'Key set: ' + data.masked;
+          status.style.color = '#0ecb81';
+        } else {
+          status.textContent = 'No key set';
+          status.style.color = '#f6465d';
+        }
+      } catch (e) { /* */ }
+    }
+
+    document.getElementById('ankrForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      try {
+        const res = await fetch('/api/ankr-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: form.ankr_key.value }),
+        });
+        if (res.ok) { toast('Ankr key saved'); form.ankr_key.value = ''; loadAnkrKey(); }
+        else toast('Failed to save', 'error');
+      } catch (err) { toast('Network error', 'error'); }
+    });
 
     document.getElementById('emailForm').addEventListener('submit', async (e) => {
       e.preventDefault();

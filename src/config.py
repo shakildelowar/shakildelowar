@@ -85,6 +85,17 @@ def list_urls(path: str | None = None) -> list[dict]:
     return urls
 
 
+def get_ankr_api_key(path: str | None = None) -> str:
+    config = load_config(path)
+    return config.get("ankr_api_key", "")
+
+
+def set_ankr_api_key(key: str, path: str | None = None) -> None:
+    config = load_config(path)
+    config["ankr_api_key"] = key.strip()
+    save_config(config, path)
+
+
 def get_email_config(path: str | None = None) -> dict:
     config = load_config(path)
     return config.get("email", {})

@@ -36,6 +36,14 @@ LAMPORTS_PER_SOL = 1_000_000_000
 DEBANK_API = "https://api.debank.com/user/total_balance"
 ANKR_MULTICHAIN = "https://rpc.ankr.com/multichain"
 
+# Module-level Ankr API key (set at startup or via settings)
+_ankr_api_key = ""
+
+
+def set_ankr_key(key: str):
+    global _ankr_api_key
+    _ankr_api_key = key.strip()
+
 # Public RPC endpoints for direct chain queries (ultimate fallback)
 EVM_CHAINS = {
     "ethereum": {
@@ -68,7 +76,8 @@ EVM_CHAINS = {
         "decimals": 18,
         "coingecko_id": "binancecoin",
         "binance_symbol": "BNBUSDT",
-        "blockscout": "https://bsc.blockscout.com",
+        "blockscout": None,  # BSC Blockscout is down
+        "bscscan": "https://api.bscscan.com/api",
     },
     "arbitrum": {
         "rpcs": ["https://arbitrum-one-rpc.publicnode.com", "https://arb1.arbitrum.io/rpc", "https://rpc.ankr.com/arbitrum"],
@@ -159,8 +168,8 @@ def _sol_balance(address: str) -> float | None:
         )
         resp.raise_for_status()
         d = resp.json().get("data", {})
-        sol_lamports = d.get("lamports", 0)
-        if sol_lamports:
+        sol_lamports = d.get("lamports")
+        if sol_lamports is not None:
             balance = int(sol_lamports) / LAMPORTS_PER_SOL
             print(f"[Solscan] SOL balance: {balance}")
             return balance
@@ -509,9 +518,14 @@ def fetch_solana_balance(address: str) -> dict:
 
 def _evm_balance_ankr(address: str) -> dict | None:
     """Fetch EVM balance via Ankr multichain API with retry."""
+    if not _ankr_api_key:
+        print("[Ankr] No API key set, skipping")
+        return None
+
+    ankr_url = f"{ANKR_MULTICHAIN}/{_ankr_api_key}"
     for attempt in range(2):
         try:
-            resp = requests.post(ANKR_MULTICHAIN, json={
+            resp = requests.post(ankr_url, json={
                 "jsonrpc": "2.0", "id": 1,
                 "method": "ankr_getAccountBalance",
                 "params": {"walletAddress": address.lower()},
@@ -620,7 +634,7 @@ def _fetch_blockscout_tokens(address: str, chain_name: str, blockscout_url: str)
     try:
         resp = requests.get(
             f"{blockscout_url}/api/v2/addresses/{address.lower()}/token-balances",
-            timeout=12,
+            timeout=8,
             headers={"Accept": "application/json"},
         )
         resp.raise_for_status()
@@ -653,6 +667,87 @@ def _fetch_blockscout_tokens(address: str, chain_name: str, blockscout_url: str)
         print(f"[Blockscout] {chain_name}: {len(tokens)} token(s)")
     except Exception as e:
         print(f"[Blockscout] {chain_name} failed: {e}")
+
+    return tokens
+
+
+def _fetch_bscscan_tokens(address: str) -> list[dict]:
+    """Fetch BSC ERC-20 tokens via BscScan tokentx endpoint (free, no key, rate-limited)."""
+    tokens = []
+    try:
+        # Get recent token transfers to discover which tokens this address holds
+        resp = requests.get(
+            "https://api.bscscan.com/api",
+            params={
+                "module": "account",
+                "action": "tokentx",
+                "address": address.lower(),
+                "page": 1,
+                "offset": 50,
+                "sort": "desc",
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("status") != "1":
+            print(f"[BscScan] tokentx: {data.get('message', 'error')}")
+            return tokens
+
+        # Collect unique token contracts
+        seen_contracts = {}
+        for tx in data.get("result", []):
+            contract = tx.get("contractAddress", "")
+            if contract and contract not in seen_contracts:
+                seen_contracts[contract] = {
+                    "symbol": tx.get("tokenSymbol", "???"),
+                    "name": tx.get("tokenName", "Unknown"),
+                    "decimals": int(tx.get("tokenDecimal", 18)),
+                }
+
+        if not seen_contracts:
+            return tokens
+
+        print(f"[BscScan] Found {len(seen_contracts)} unique token contract(s)")
+
+        # Check balance of each token (rate limit: 1 call per 5s without key)
+        # Only check top 5 to stay within rate limits
+        for i, (contract, meta) in enumerate(list(seen_contracts.items())[:5]):
+            if i > 0:
+                time.sleep(0.3)  # Small delay to avoid rate limit
+            try:
+                resp = requests.get(
+                    "https://api.bscscan.com/api",
+                    params={
+                        "module": "account",
+                        "action": "tokenbalance",
+                        "contractaddress": contract,
+                        "address": address.lower(),
+                        "tag": "latest",
+                    },
+                    timeout=6,
+                )
+                resp.raise_for_status()
+                bal_data = resp.json()
+                if bal_data.get("status") == "1":
+                    raw = int(bal_data.get("result", "0"))
+                    balance = raw / (10 ** meta["decimals"])
+                    if balance > 0.000001:
+                        tokens.append({
+                            "symbol": meta["symbol"],
+                            "name": meta["name"],
+                            "amount": balance,
+                            "price": 0,  # BscScan doesn't provide prices
+                            "usd": 0,
+                            "chain": "bsc",
+                            "contract": contract,
+                        })
+            except Exception as e:
+                print(f"[BscScan] Balance check failed for {meta['symbol']}: {e}")
+
+        print(f"[BscScan] {len(tokens)} token(s) with balance")
+    except Exception as e:
+        print(f"[BscScan] Failed: {e}")
 
     return tokens
 
@@ -708,15 +803,21 @@ def _evm_balance_direct_rpc(address: str) -> dict | None:
                 print(f"[DirectRPC] {chain_name} {rpc_url} failed: {e}")
                 continue
 
-    # Fetch ERC-20 tokens via Blockscout for chains with activity
+    # Fetch ERC-20 tokens via Blockscout/BscScan for chains with activity
     for chain_name in active_chains:
         chain_info = EVM_CHAINS[chain_name]
-        blockscout_url = chain_info.get("blockscout")
-        if not blockscout_url:
-            continue
+        chain_tokens = []
 
-        tokens = _fetch_blockscout_tokens(address, chain_name, blockscout_url)
-        for t in tokens:
+        # Try Blockscout first (works for Ethereum, Polygon, etc.)
+        blockscout_url = chain_info.get("blockscout")
+        if blockscout_url:
+            chain_tokens = _fetch_blockscout_tokens(address, chain_name, blockscout_url)
+
+        # Try BscScan for BSC
+        if not chain_tokens and chain_name == "bsc":
+            chain_tokens = _fetch_bscscan_tokens(address)
+
+        for t in chain_tokens:
             if t["usd"] > 0.01:
                 evm_tokens.append(t)
                 total_usd += t["usd"]
@@ -784,18 +885,21 @@ def _evm_balance_debank(address: str) -> dict | None:
 
 
 def fetch_evm_balance(address: str) -> dict:
-    """Fetch EVM wallet balance. Tries Ankr, DeBank, then direct RPC."""
+    """Fetch EVM wallet balance. Tries Ankr (if key), then direct RPC + Blockscout."""
+    # Strategy 1: Ankr (requires free API key)
     result = _evm_balance_ankr(address)
     if result:
         return result
 
-    print("[EVM] Ankr failed, trying DeBank...")
-    result = _evm_balance_debank(address)
+    # Strategy 2: Direct chain RPCs + Blockscout for ERC-20 tokens
+    print("[EVM] Trying direct chain RPCs + Blockscout...")
+    result = _evm_balance_direct_rpc(address)
     if result:
         return result
 
-    print("[EVM] DeBank failed, trying direct chain RPCs...")
-    result = _evm_balance_direct_rpc(address)
+    # Strategy 3: DeBank (often blocked from server IPs)
+    print("[EVM] Trying DeBank as last resort...")
+    result = _evm_balance_debank(address)
     if result:
         return result
 
