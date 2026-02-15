@@ -564,8 +564,8 @@ def _evm_balance_ankr(address: str) -> dict | None:
             }
         except Exception as e:
             print(f"[Ankr] Attempt {attempt+1} failed: {e}")
-            if attempt < 2:
-                time.sleep(2 * (attempt + 1))
+            if attempt < 1:
+                time.sleep(1)
     return None
 
 
