@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
-ALLOWED_DOMAINS = ("debank.com", "jup.ag")
+ALLOWED_DOMAINS = ("debank.com", "jup.ag", "zerion.io", "app.zerion.io")
 
 
 def _config_path(path: str | None) -> str:

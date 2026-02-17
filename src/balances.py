@@ -128,7 +128,7 @@ def _rpc_call(payload: dict, timeout: int = 6) -> dict | None:
 
 
 def extract_address_from_url(url: str) -> tuple[str, str]:
-    """Extract wallet address and type from a DeBank/Jupiter URL."""
+    """Extract wallet address and type from a DeBank/Jupiter/Zerion URL."""
     parsed = urlparse(url)
     host = parsed.hostname or ""
     path = parsed.path.rstrip("/")
@@ -141,6 +141,15 @@ def extract_address_from_url(url: str) -> tuple[str, str]:
         parts = path.split("/")
         address = parts[-1] if len(parts) >= 2 else ""
         return address, "evm"
+    elif "zerion.io" in host:
+        # Zerion URL: https://app.zerion.io/{address}/overview
+        parts = [p for p in path.split("/") if p]
+        address = parts[0] if parts else ""
+        # Solana addresses are base58 (no 0x prefix), EVM starts with 0x
+        if address.startswith("0x"):
+            return address, "evm"
+        else:
+            return address, "solana"
 
     return "", "unknown"
 
