@@ -2,6 +2,7 @@
 """Flask web server for Portfolio Snapshots."""
 
 import os
+import threading
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
@@ -12,6 +13,16 @@ from src.balances import fetch_all_balances, fetch_balance_for_url
 from src.emailer import send_screenshots_email
 
 app = Flask(__name__)
+
+
+# --- Monthly scheduler (runs in background thread) ---
+
+def _start_monthly_scheduler():
+    """Start the end-of-month scheduler in a background daemon thread."""
+    from src.scheduler import run_scheduler
+    t = threading.Thread(target=run_scheduler, daemon=True)
+    t.start()
+    print("Monthly scheduler started in background thread.")
 
 
 @app.route("/")
@@ -145,5 +156,6 @@ def post_email_settings():
 
 
 if __name__ == "__main__":
+    _start_monthly_scheduler()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
