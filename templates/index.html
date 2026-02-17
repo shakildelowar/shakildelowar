@@ -477,29 +477,13 @@
       <div class="card">
         <h2>Email Settings</h2>
         <p style="color:#5e6673;font-size:0.8rem;margin-bottom:18px;">
-          Configure where reports get emailed. For Gmail, use an
-          <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#f0b90b;">App Password</a>.
+          Set the email address where monthly reports will be sent.
+          Email is powered by Resend (API key set in Railway env vars).
         </p>
         <form class="settings-form" id="emailForm">
           <div>
             <label>Recipient Email</label>
             <input type="email" name="recipient" placeholder="you@example.com" required>
-          </div>
-          <div>
-            <label>SMTP User (sender email)</label>
-            <input type="email" name="smtp_user" placeholder="sender@gmail.com" required>
-          </div>
-          <div>
-            <label>SMTP Password / App Password</label>
-            <input type="password" name="smtp_password" placeholder="xxxx xxxx xxxx xxxx" required>
-          </div>
-          <div>
-            <label>SMTP Host</label>
-            <input type="text" name="smtp_host" value="smtp.gmail.com">
-          </div>
-          <div>
-            <label>SMTP Port</label>
-            <input type="number" name="smtp_port" value="587">
           </div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
             <button type="submit" class="btn btn-primary">Save</button>
@@ -707,10 +691,6 @@
         const data = await res.json();
         const form = document.getElementById('emailForm');
         form.recipient.value = data.recipient || '';
-        form.smtp_user.value = data.smtp_user || '';
-        form.smtp_password.value = data.smtp_password || '';
-        form.smtp_host.value = data.smtp_host || 'smtp.gmail.com';
-        form.smtp_port.value = data.smtp_port || 587;
       } catch (e) { /* */ }
     }
 
@@ -723,10 +703,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient: form.recipient.value.trim(),
-            smtp_user: form.smtp_user.value.trim(),
-            smtp_password: form.smtp_password.value,
-            smtp_host: form.smtp_host.value.trim(),
-            smtp_port: parseInt(form.smtp_port.value),
           }),
         });
         if (res.ok) toast('Settings saved');

@@ -1,12 +1,10 @@
-"""Send screenshot emails via SMTP."""
+"""Send portfolio report emails via Resend API."""
 
+import base64
 import os
-import smtplib
-from email.message import EmailMessage
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
 from datetime import datetime, timezone
+
+import resend
 
 from .config import get_email_config, list_urls
 from .balances import fetch_all_balances
@@ -42,7 +40,6 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
         if w.get("error"):
             html += f'<div style="color:#f85149;padding:8px 0;">Error: {w["error"]}</div>'
         elif w.get("type") == "solana":
-            # Holdings section header
             holdings_usd = w.get("sol_usd", 0) + sum(t.get("usd", 0) for t in w.get("tokens", []))
             html += f"""
         <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;">
@@ -56,7 +53,6 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
           <div style="flex:1;text-align:right;">Value</div>
         </div>"""
 
-            # SOL row (always shown)
             if w.get("sol_balance") is not None:
                 html += f"""
         <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #21262d;align-items:center;">
@@ -66,7 +62,6 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
           <div style="flex:1;text-align:right;font-weight:600;font-size:0.9rem;">${w.get('sol_usd', 0):.2f}</div>
         </div>"""
 
-            # Holdings token rows (>= $1)
             for t in w.get("tokens", []):
                 price_str = f"${t['price']:.4f}" if t.get("price") else "--"
                 html += f"""
@@ -77,7 +72,6 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
           <div style="flex:1;text-align:right;font-weight:600;font-size:0.9rem;">${t.get('usd', 0):.2f}</div>
         </div>"""
 
-            # Other section (< $1)
             other = w.get("other_tokens", [])
             if other:
                 other_usd = sum(t.get("usd", 0) for t in other)
@@ -121,24 +115,31 @@ def _build_balance_html(wallets: list[dict], timestamp: str) -> str:
     return html
 
 
+def _get_resend_key() -> str:
+    """Get Resend API key from environment."""
+    key = os.environ.get("RESEND_API_KEY", "").strip()
+    if not key:
+        raise ValueError("RESEND_API_KEY environment variable not set. Add it in Railway.")
+    return key
+
+
+def _get_sender() -> str:
+    """Get sender email - uses custom domain if RESEND_FROM is set, otherwise Resend default."""
+    return os.environ.get("RESEND_FROM", "Portfolio Tracker <onboarding@resend.dev>").strip()
+
+
 def send_screenshots_email(
     screenshot_results: list[dict],
     config_path: str | None = None,
     include_balances: bool = True,
 ) -> None:
-    """Email screenshots as attachments with balance report in body."""
+    """Email screenshots as attachments with balance report in body via Resend."""
+    resend.api_key = _get_resend_key()
+
     email_cfg = get_email_config(config_path)
-
     recipient = email_cfg.get("recipient", "")
-    smtp_host = email_cfg.get("smtp_host", "smtp.gmail.com")
-    smtp_port = email_cfg.get("smtp_port", 587)
-    smtp_user = email_cfg.get("smtp_user", "")
-    smtp_password = email_cfg.get("smtp_password", "")
-
     if not recipient:
         raise ValueError("No recipient email configured. Set it in the Settings page.")
-    if not smtp_user or not smtp_password:
-        raise ValueError("SMTP credentials not configured. Set them in the Settings page.")
 
     now = datetime.now(timezone.utc)
     month_str = now.strftime("%B %Y")
@@ -146,20 +147,6 @@ def send_screenshots_email(
 
     successful = [r for r in screenshot_results if r.get("path")]
     failed = [r for r in screenshot_results if r.get("error")]
-
-    # Build plain text summary
-    text_lines = [
-        f"Monthly portfolio report - {now.strftime('%Y-%m-%d %H:%M UTC')}",
-        "",
-        f"Total URLs: {len(screenshot_results)}",
-        f"Screenshots captured: {len(successful)}",
-    ]
-    if failed:
-        text_lines.append(f"Failed: {len(failed)}")
-        for f_item in failed:
-            text_lines.append(f"  - {f_item['label']}: {f_item['error']}")
-    text_lines.append("")
-    text_lines.append("See attached screenshots and the HTML version for balance details.")
 
     # Build HTML body
     html_body = f"""<html><body style="background:#0f1117;margin:0;padding:0;">
@@ -170,7 +157,6 @@ def send_screenshots_email(
       </p>
     """
 
-    # Include balance report
     if include_balances:
         try:
             urls = list_urls(config_path)
@@ -186,38 +172,27 @@ def send_screenshots_email(
       </p>
     </div></body></html>"""
 
-    # Build MIME message
-    msg = MIMEMultipart("mixed")
-    msg["Subject"] = f"Portfolio Report - {month_str}"
-    msg["From"] = smtp_user
-    msg["To"] = recipient
-
-    # HTML + text alternative
-    alt = MIMEMultipart("alternative")
-    alt.attach(MIMEText("\n".join(text_lines), "plain"))
-    alt.attach(MIMEText(html_body, "html"))
-    msg.attach(alt)
-
-    # Attach screenshots
+    # Build attachments
+    attachments = []
     for result in successful:
-        filepath = result["path"]
+        filepath = result.get("path")
         if filepath and os.path.exists(filepath):
             filename = result.get("filename") or os.path.basename(filepath)
             with open(filepath, "rb") as f:
                 img_data = f.read()
-            img = MIMEImage(img_data, _subtype="png")
-            img.add_header("Content-Disposition", "attachment", filename=filename)
-            msg.attach(img)
+            attachments.append({
+                "filename": filename,
+                "content": list(img_data),
+            })
 
-    # Try SSL (port 465) first, then STARTTLS (port 587)
-    try:
-        with smtplib.SMTP_SSL(smtp_host, 465, timeout=15) as server:
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-    except OSError:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+    params = {
+        "from": _get_sender(),
+        "to": [recipient],
+        "subject": f"Portfolio Report - {month_str}",
+        "html": html_body,
+    }
+    if attachments:
+        params["attachments"] = attachments
 
-    print(f"Email sent to {recipient} with {len(successful)} screenshot(s) + balance report.")
+    resend.Emails.send(params)
+    print(f"Email sent to {recipient} via Resend with {len(successful)} screenshot(s) + balance report.")
