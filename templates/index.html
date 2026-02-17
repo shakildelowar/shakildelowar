@@ -501,7 +501,10 @@
             <label>SMTP Port</label>
             <input type="number" name="smtp_port" value="587">
           </div>
-          <button type="submit" class="btn btn-primary" style="align-self:flex-start;margin-top:10px;">Save</button>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-secondary" id="testEmailBtn" onclick="testEmail()">Test Email</button>
+          </div>
         </form>
       </div>
     </div>
@@ -730,6 +733,19 @@
         else toast('Failed to save', 'error');
       } catch (err) { toast('Network error', 'error'); }
     });
+
+    async function testEmail() {
+      const btn = document.getElementById('testEmailBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/test-email', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) { toast(data.message || 'Test email sent!'); }
+        else { toast(data.error || 'Failed', 'error'); }
+      } catch (err) { toast('Network error', 'error'); }
+      finally { btn.disabled = false; btn.textContent = 'Test Email'; }
+    }
 
     /* --- Balances --- */
     function formatUSD(val) {

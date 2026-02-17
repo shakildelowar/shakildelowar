@@ -155,6 +155,40 @@ def post_email_settings():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/test-email", methods=["POST"])
+def test_email():
+    """Send a quick test email to verify SMTP settings."""
+    import smtplib
+    from email.mime.text import MIMEText
+
+    cfg = get_email_config()
+    recipient = cfg.get("recipient", "")
+    smtp_user = cfg.get("smtp_user", "")
+    smtp_password = cfg.get("smtp_password", "")
+    smtp_host = cfg.get("smtp_host", "smtp.gmail.com")
+    smtp_port = cfg.get("smtp_port", 587)
+
+    if not recipient or not smtp_user or not smtp_password:
+        return jsonify({"error": "Email settings incomplete. Fill in all fields first."}), 400
+
+    try:
+        msg = MIMEText("This is a test email from your Portfolio Tracker. If you see this, email is working!")
+        msg["Subject"] = "Portfolio Tracker - Test Email"
+        msg["From"] = smtp_user
+        msg["To"] = recipient
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+
+        return jsonify({"ok": True, "message": f"Test email sent to {recipient}!"})
+    except smtplib.SMTPAuthenticationError as e:
+        return jsonify({"error": f"Authentication failed. Make sure you're using a Gmail App Password, not your regular password. ({e})"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Email failed: {e}"}), 500
+
+
 if __name__ == "__main__":
     _start_monthly_scheduler()
     port = int(os.environ.get("PORT", 5000))
