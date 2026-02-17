@@ -69,41 +69,8 @@ def take_screenshot(url: str, output_path: str) -> str:
             except Exception:
                 pass
 
-        # Dismiss cookie banners and popups
-        for dismiss_selector in [
-            # Zerion cookie banner "Accept" button
-            "button:has-text('Accept')",
-            "button:has-text('Accept All')",
-            "button:has-text('Got it')",
-            "button:has-text('I agree')",
-            # Generic cookie consent
-            "[class*='cookie'] button",
-            "[id*='cookie'] button",
-            "[class*='consent'] button",
-        ]:
-            try:
-                btn = page.locator(dismiss_selector).first
-                if btn.is_visible(timeout=1000):
-                    btn.click()
-                    page.wait_for_timeout(500)
-                    break
-            except Exception:
-                pass
-
-        # Hide distracting overlays (Zerion sidebar, premium banners)
-        page.evaluate("""
-            // Remove fixed/sticky elements that overlay content
-            document.querySelectorAll('[class*="cookie"], [class*="consent"], [class*="banner"]').forEach(el => {
-                if (el.style) el.style.display = 'none';
-            });
-            // Hide Zerion left sidebar and premium promo for cleaner screenshot
-            document.querySelectorAll('nav, [class*="sidebar"], [class*="premium"], [class*="Premium"]').forEach(el => {
-                if (el.style) el.style.display = 'none';
-            });
-        """)
-
         # Final wait for any last renders
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(5000)
 
         page.screenshot(path=output_path, full_page=True)
         browser.close()
