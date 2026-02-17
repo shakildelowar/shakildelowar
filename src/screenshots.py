@@ -16,11 +16,22 @@ def get_screenshots_dir(config_path: str | None = None) -> str:
     return d
 
 
+def _clear_old_screenshots(screenshots_dir: str) -> None:
+    """Delete all previous screenshot PNGs."""
+    for f in os.listdir(screenshots_dir):
+        if f.endswith(".png"):
+            try:
+                os.remove(os.path.join(screenshots_dir, f))
+            except OSError:
+                pass
+
+
 def take_all_screenshots(config_path: str | None = None) -> list[dict]:
     """Screenshot the /report page which shows all wallet balances."""
     from playwright.sync_api import sync_playwright
 
     screenshots_dir = get_screenshots_dir(config_path)
+    _clear_old_screenshots(screenshots_dir)
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d_%H%M%S")
     filename = f"report_{date_str}.png"
