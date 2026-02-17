@@ -209,9 +209,15 @@ def send_screenshots_email(
             img.add_header("Content-Disposition", "attachment", filename=filename)
             msg.attach(img)
 
-    with smtplib.SMTP(smtp_host, smtp_port) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
+    # Try SSL (port 465) first, then STARTTLS (port 587)
+    try:
+        with smtplib.SMTP_SSL(smtp_host, 465, timeout=15) as server:
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+    except OSError:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
 
     print(f"Email sent to {recipient} with {len(successful)} screenshot(s) + balance report.")

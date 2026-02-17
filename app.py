@@ -177,10 +177,16 @@ def test_email():
         msg["From"] = smtp_user
         msg["To"] = recipient
 
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        # Try SSL (port 465) first, then STARTTLS (port 587)
+        try:
+            with smtplib.SMTP_SSL(smtp_host, 465, timeout=10) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        except OSError:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
 
         return jsonify({"ok": True, "message": f"Test email sent to {recipient}!"})
     except smtplib.SMTPAuthenticationError as e:
