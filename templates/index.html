@@ -433,7 +433,7 @@
       <div class="card">
         <h2>Add URL</h2>
         <form class="add-form" id="addForm">
-          <input type="text" name="url" placeholder="DeBank, Jupiter, or Zerion URL" required>
+          <input type="text" name="url" placeholder="DeBank, Jupiter, Zerion, or Solscan URL" required>
           <input type="text" name="label" placeholder="Label (optional)">
           <button type="submit" class="btn btn-primary" id="addBtn">Add</button>
         </form>
@@ -549,8 +549,8 @@
     function detectSource(url) {
       if (url.includes('debank.com')) return 'debank';
       if (url.includes('jup.ag')) return 'jupiter';
+      if (url.includes('solscan.io')) return 'solscan';
       if (url.includes('zerion.io')) {
-        // Check if the address in the URL is EVM (0x) or Solana
         const parts = new URL(url).pathname.split('/').filter(Boolean);
         if (parts[0] && parts[0].startsWith('0x')) return 'debank';
         return 'zerion';
@@ -582,7 +582,7 @@
         const src = detectSource(u.url);
         const badge = src === 'debank'
           ? '<span class="url-badge badge-debank">EVM</span>'
-          : '<span class="url-badge badge-jupiter">Solana</span>';  // jupiter or zerion
+          : '<span class="url-badge badge-jupiter">Solana</span>';
         const label = (u.label && u.label !== u.url) ? '<div class="url-label">' + esc(u.label) + '</div>' : '';
 
         return '<div class="url-row">'

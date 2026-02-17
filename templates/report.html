@@ -4,211 +4,390 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f1117;
-      color: #e1e4e8;
-      padding: 32px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #050507;
+      color: #e8e8ed;
+      padding: 40px 32px;
+      -webkit-font-smoothing: antialiased;
+      position: relative;
+      overflow-x: hidden;
     }
+
+    /* Prismatic background orbs */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -20%;
+      left: -10%;
+      width: 60vw;
+      height: 60vw;
+      background: radial-gradient(circle, rgba(120,80,255,0.12) 0%, rgba(60,20,180,0.04) 50%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -15%;
+      right: -10%;
+      width: 50vw;
+      height: 50vw;
+      background: radial-gradient(circle, rgba(255,100,200,0.1) 0%, rgba(255,50,100,0.03) 50%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
     .report-header {
       text-align: center;
-      margin-bottom: 32px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid #30363d;
+      margin-bottom: 36px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .report-header h1 { font-size: 1.4rem; margin-bottom: 6px; }
-    .report-header .date { color: #8b949e; font-size: 0.85rem; }
+    .report-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, #c8c8d0 40%, #a78bfa 70%, #f0abfc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+    .report-header .date {
+      color: rgba(255,255,255,0.35);
+      font-size: 0.8rem;
+    }
 
+    /* Glass card */
     .wallet-card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 12px;
-      padding: 20px;
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(40px) saturate(150%);
+      -webkit-backdrop-filter: blur(40px) saturate(150%);
+      border-radius: 20px;
+      padding: 24px;
       margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 4px 24px rgba(0,0,0,0.3),
+        0 1px 0 rgba(255,255,255,0.05) inset;
+      position: relative;
+      overflow: hidden;
     }
+    /* Prismatic edge shimmer */
+    .wallet-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(168,130,255,0.3) 20%, rgba(255,140,200,0.25) 40%, rgba(100,200,255,0.25) 60%, rgba(168,130,255,0.2) 80%, transparent 100%);
+      pointer-events: none;
+    }
+
     .wallet-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 4px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #21262d;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .wallet-label { font-weight: 600; font-size: 1rem; }
+    .wallet-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #e8e8ed;
+      margin-top: 6px;
+    }
     .wallet-address {
-      font-family: monospace;
-      font-size: 0.75rem;
-      color: #8b949e;
-      margin-top: 4px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.25);
+      margin-top: 2px;
     }
     .wallet-total {
-      font-size: 1.5rem;
+      font-size: 1.6rem;
       font-weight: 700;
-      color: #3fb950;
+      background: linear-gradient(135deg, #34d399 0%, #6ee7b7 50%, #a7f3d0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
     }
     .wallet-type {
       display: inline-block;
-      padding: 2px 10px;
-      border-radius: 12px;
-      font-size: 0.7rem;
-      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.65rem;
+      font-weight: 700;
       text-transform: uppercase;
-      margin-bottom: 4px;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(8px);
     }
-    .type-solana { background: #2a1f4e; color: #bc8cff; }
-    .type-evm { background: #1c3a5f; color: #58a6ff; }
+    .type-solana {
+      background: linear-gradient(135deg, rgba(192,132,252,0.15), rgba(168,85,247,0.1));
+      color: #c4b5fd;
+      border: 1px solid rgba(192,132,252,0.15);
+    }
+    .type-evm {
+      background: linear-gradient(135deg, rgba(96,165,250,0.15), rgba(59,130,246,0.1));
+      color: #93bbfc;
+      border: 1px solid rgba(96,165,250,0.15);
+    }
 
+    /* Section headers */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      margin-top: 8px;
+    }
+    .section-title {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .section-total {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #e8e8ed;
+    }
+
+    /* Token table */
     .token-table-header {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1fr;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr;
       gap: 8px;
-      padding: 10px 0;
-      border-bottom: 1px solid #30363d;
-      color: #8b949e;
-      font-size: 0.75rem;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.3);
+      font-size: 0.7rem;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
     .token-row {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1fr;
+      grid-template-columns: 2fr 1.2fr 1fr 1fr;
       gap: 8px;
-      padding: 10px 0;
-      border-bottom: 1px solid #21262d;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
       align-items: center;
     }
     .token-row:last-child { border-bottom: none; }
-    .token-symbol { font-weight: 600; font-size: 0.9rem; }
-    .token-name { color: #8b949e; font-size: 0.75rem; }
-    .token-balance { text-align: right; color: #c9d1d9; font-size: 0.9rem; }
-    .token-price { text-align: right; color: #8b949e; font-size: 0.85rem; }
-    .token-value { text-align: right; font-weight: 600; font-size: 0.9rem; }
+    .token-symbol { font-weight: 600; font-size: 0.9rem; color: #e8e8ed; }
+    .token-name { color: rgba(255,255,255,0.3); font-size: 0.72rem; margin-top: 1px; }
+    .token-balance { text-align: right; color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+    .token-price { text-align: right; color: rgba(255,255,255,0.3); font-size: 0.85rem; }
+    .token-value { text-align: right; font-weight: 600; font-size: 0.85rem; color: #e8e8ed; }
     .col-right { text-align: right; }
 
     .error-msg {
-      color: #f85149;
-      font-size: 0.9rem;
-      padding: 12px;
+      color: #fb7185;
+      font-size: 0.85rem;
+      padding: 16px 0;
     }
     .empty-tokens {
-      color: #484f58;
+      color: rgba(255,255,255,0.25);
       font-size: 0.85rem;
-      padding: 8px 0;
+      padding: 12px 0;
+    }
+
+    /* Grand total footer */
+    .grand-total {
+      text-align: center;
+      margin-top: 12px;
+      padding: 20px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .grand-total-label {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .grand-total-value {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #34d399 0%, #6ee7b7 50%, #a7f3d0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
     }
   </style>
 </head>
 <body>
-  <div class="report-header">
-    <h1>Portfolio Balance Report</h1>
-    <div class="date">{{ timestamp }}</div>
-  </div>
-
-  {% for wallet in wallets %}
-  <div class="wallet-card">
-    <div class="wallet-header">
-      <div>
-        <span class="wallet-type {{ 'type-solana' if wallet.type == 'solana' else 'type-evm' }}">
-          {{ 'Solana' if wallet.type == 'solana' else 'EVM' }}
-        </span>
-        <div class="wallet-label">{{ wallet.label }}</div>
-        <div class="wallet-address">{{ wallet.address }}</div>
-      </div>
-      <div class="wallet-total">${{ "%.2f"|format(wallet.total_usd) }}</div>
+  <div class="container">
+    <div class="report-header">
+      <h1>Portfolio Balance Report</h1>
+      <div class="date">{{ timestamp }}</div>
     </div>
 
-    {% if wallet.error %}
-      <div class="error-msg">Error: {{ wallet.error }}</div>
-    {% elif wallet.type == 'solana' %}
+    {% set ns = namespace(grand_total=0) %}
 
-      <!-- Holdings section -->
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:4px;">
-        <div style="font-weight:600;font-size:0.9rem;">Holdings</div>
-        <div style="font-weight:600;font-size:0.9rem;">
-          ${{ "%.2f"|format(wallet.sol_usd + (wallet.tokens | sum(attribute='usd'))) }}
-        </div>
-      </div>
-      <div class="token-table-header">
-        <div>Asset</div>
-        <div class="col-right">Balance</div>
-        <div class="col-right">Price</div>
-        <div class="col-right">Value</div>
-      </div>
-      {% if wallet.sol_balance is not none %}
-      <div class="token-row">
+    {% for wallet in wallets %}
+    {% set ns.grand_total = ns.grand_total + wallet.total_usd %}
+    <div class="wallet-card">
+      <div class="wallet-header">
         <div>
-          <div class="token-symbol">SOL</div>
-          <div class="token-name">Solana</div>
+          <span class="wallet-type {{ 'type-solana' if wallet.type == 'solana' else 'type-evm' }}">
+            {{ 'Solana' if wallet.type == 'solana' else 'EVM' }}
+          </span>
+          <div class="wallet-label">{{ wallet.label }}</div>
+          <div class="wallet-address">{{ wallet.address }}</div>
         </div>
-        <div class="token-balance">{{ "%.4f"|format(wallet.sol_balance) }}</div>
-        <div class="token-price">${{ "%.2f"|format(wallet.sol_price) }}</div>
-        <div class="token-value">${{ "%.2f"|format(wallet.sol_usd) }}</div>
+        <div class="wallet-total">${{ "%.2f"|format(wallet.total_usd) }}</div>
       </div>
+
+      {% if wallet.error %}
+        <div class="error-msg">Error: {{ wallet.error }}</div>
+      {% elif wallet.type == 'solana' %}
+
+        <!-- Holdings section -->
+        <div class="section-header">
+          <div class="section-title">Holdings</div>
+          <div class="section-total">
+            ${{ "%.2f"|format(wallet.sol_usd + (wallet.tokens | sum(attribute='usd'))) }}
+          </div>
+        </div>
+        <div class="token-table-header">
+          <div>Asset</div>
+          <div class="col-right">Balance</div>
+          <div class="col-right">Price</div>
+          <div class="col-right">Value</div>
+        </div>
+        {% if wallet.sol_balance is not none %}
+        <div class="token-row">
+          <div>
+            <div class="token-symbol">SOL</div>
+            <div class="token-name">Solana</div>
+          </div>
+          <div class="token-balance">{{ "%.4f"|format(wallet.sol_balance) }}</div>
+          <div class="token-price">${{ "%.2f"|format(wallet.sol_price) }}</div>
+          <div class="token-value">${{ "%.2f"|format(wallet.sol_usd) }}</div>
+        </div>
+        {% endif %}
+        {% for token in wallet.tokens %}
+        <div class="token-row">
+          <div>
+            <div class="token-symbol">{{ token.symbol }}</div>
+            <div class="token-name">{{ token.name }}</div>
+          </div>
+          <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
+          <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
+          <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
+        </div>
+        {% endfor %}
+
+        <!-- Other section -->
+        {% if wallet.other_tokens %}
+        <div class="section-header" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">
+          <div class="section-title">Other</div>
+          <div class="section-total">
+            ${{ "%.2f"|format(wallet.other_tokens | sum(attribute='usd')) }}
+          </div>
+        </div>
+        <div class="token-table-header">
+          <div>Asset</div>
+          <div class="col-right">Balance</div>
+          <div class="col-right">Price</div>
+          <div class="col-right">Value</div>
+        </div>
+        {% for token in wallet.other_tokens %}
+        <div class="token-row">
+          <div>
+            <div class="token-symbol">{{ token.symbol }}</div>
+            <div class="token-name">{{ token.name }}</div>
+          </div>
+          <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
+          <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
+          <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if not wallet.tokens and not wallet.other_tokens and wallet.sol_balance is none %}
+        <div class="empty-tokens">No tokens found</div>
+        {% endif %}
+
+      {% elif wallet.type == 'evm' %}
+        <!-- Chain breakdown -->
+        <div class="section-header">
+          <div class="section-title">Chains</div>
+        </div>
+        <div class="token-table-header">
+          <div>Chain</div>
+          <div class="col-right">Balance</div>
+          <div class="col-right">Price</div>
+          <div class="col-right">Value</div>
+        </div>
+        {% for chain in wallet.chains %}
+        <div class="token-row">
+          <div>
+            <div class="token-symbol">{{ chain.name }}</div>
+            <div class="token-name">Chain</div>
+          </div>
+          <div class="token-balance">--</div>
+          <div class="token-price">--</div>
+          <div class="token-value">${{ "%.2f"|format(chain.usd) }}</div>
+        </div>
+        {% endfor %}
+
+        <!-- EVM tokens if available -->
+        {% if wallet.evm_tokens %}
+        <div class="section-header" style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">
+          <div class="section-title">Tokens</div>
+        </div>
+        <div class="token-table-header">
+          <div>Asset</div>
+          <div class="col-right">Balance</div>
+          <div class="col-right">Price</div>
+          <div class="col-right">Value</div>
+        </div>
+        {% for token in wallet.evm_tokens %}
+        <div class="token-row">
+          <div>
+            <div class="token-symbol">{{ token.symbol }}</div>
+            <div class="token-name">{{ token.chain | upper if token.chain else '' }}</div>
+          </div>
+          <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
+          <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
+          <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
+        </div>
+        {% endfor %}
+        {% endif %}
       {% endif %}
-      {% for token in wallet.tokens %}
-      <div class="token-row">
-        <div>
-          <div class="token-symbol">{{ token.symbol }}</div>
-          <div class="token-name">{{ token.name }}</div>
-        </div>
-        <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
-        <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
-        <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
-      </div>
-      {% endfor %}
+    </div>
+    {% endfor %}
 
-      <!-- Other section -->
-      {% if wallet.other_tokens %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-top:16px;border-top:1px solid #30363d;">
-        <div style="font-weight:600;font-size:0.9rem;">Other</div>
-        <div style="font-weight:600;font-size:0.9rem;">
-          ${{ "%.2f"|format(wallet.other_tokens | sum(attribute='usd')) }}
-        </div>
-      </div>
-      <div class="token-table-header">
-        <div>Asset</div>
-        <div class="col-right">Balance</div>
-        <div class="col-right">Price</div>
-        <div class="col-right">Value</div>
-      </div>
-      {% for token in wallet.other_tokens %}
-      <div class="token-row">
-        <div>
-          <div class="token-symbol">{{ token.symbol }}</div>
-          <div class="token-name">{{ token.name }}</div>
-        </div>
-        <div class="token-balance">{{ "%.4f"|format(token.amount) }}</div>
-        <div class="token-price">{% if token.price %}${{ "%.4f"|format(token.price) }}{% else %}--{% endif %}</div>
-        <div class="token-value">${{ "%.2f"|format(token.usd) }}</div>
-      </div>
-      {% endfor %}
-      {% endif %}
-
-      {% if not wallet.tokens and not wallet.other_tokens and wallet.sol_balance is none %}
-      <div class="empty-tokens">No tokens found</div>
-      {% endif %}
-
-    {% elif wallet.type == 'evm' %}
-      <div class="token-table-header">
-        <div>Chain</div>
-        <div class="col-right">Balance</div>
-        <div class="col-right">Price</div>
-        <div class="col-right">Value</div>
-      </div>
-      {% for chain in wallet.chains %}
-      <div class="token-row">
-        <div>
-          <div class="token-symbol">{{ chain.name }}</div>
-          <div class="token-name">Chain</div>
-        </div>
-        <div class="token-balance">--</div>
-        <div class="token-price">--</div>
-        <div class="token-value">${{ "%.2f"|format(chain.usd) }}</div>
-      </div>
-      {% endfor %}
+    {% if wallets | length > 1 %}
+    <div class="grand-total">
+      <div class="grand-total-label">Total Portfolio Value</div>
+      <div class="grand-total-value">${{ "%.2f"|format(ns.grand_total) }}</div>
+    </div>
     {% endif %}
   </div>
-  {% endfor %}
 </body>
 </html>

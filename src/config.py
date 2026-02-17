@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
-ALLOWED_DOMAINS = ("debank.com", "jup.ag", "zerion.io", "app.zerion.io")
+ALLOWED_DOMAINS = ("debank.com", "jup.ag", "zerion.io", "app.zerion.io", "solscan.io")
 
 
 def _config_path(path: str | None) -> str:
@@ -39,7 +39,7 @@ def _validate_url(url: str) -> str:
 
     if not any(host.endswith(d) for d in ALLOWED_DOMAINS):
         raise ValueError(
-            f"URL must be from debank.com or jup.ag. Got: {host}"
+            f"URL must be from DeBank, Jupiter, Zerion, or Solscan. Got: {host}"
         )
     return url
 

@@ -16,6 +16,24 @@ def get_screenshots_dir(config_path: str | None = None) -> str:
     return d
 
 
+def _is_cloudflare_blocked(page) -> bool:
+    """Check if the page is showing a Cloudflare challenge."""
+    try:
+        title = page.title().lower()
+        if "just a moment" in title or "attention required" in title:
+            return True
+        # Check for Cloudflare challenge elements
+        cf = page.locator("text=Verify you are human").count()
+        if cf > 0:
+            return True
+        cf2 = page.locator("text=Performing security verification").count()
+        if cf2 > 0:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def take_screenshot(url: str, output_path: str) -> str:
     """Take a full-page screenshot of a URL. Returns the output path."""
     from playwright.sync_api import sync_playwright
@@ -56,10 +74,14 @@ def take_screenshot(url: str, output_path: str) -> str:
         except Exception:
             pass
 
+        # Check if blocked by Cloudflare
+        blocked = _is_cloudflare_blocked(page)
+        if blocked:
+            browser.close()
+            raise CloudflareBlockedError(f"Cloudflare blocked: {url}")
+
         # Wait for loading spinners to disappear
-        # Jupiter uses a spinner, DeBank uses loading indicators
         for selector in [
-            # Common loading indicators
             "[class*='spinner']",
             "[class*='loading']",
             "[class*='skeleton']",
@@ -78,8 +100,37 @@ def take_screenshot(url: str, output_path: str) -> str:
     return output_path
 
 
+def _take_report_screenshot(output_path: str) -> str:
+    """Screenshot our own /report page as fallback (no Cloudflare issues)."""
+    from playwright.sync_api import sync_playwright
+
+    port = int(os.environ.get("PORT", 5000))
+    report_url = f"http://localhost:{port}/report"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        )
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 900},
+            java_script_enabled=True,
+        )
+        page = context.new_page()
+        page.goto(report_url, wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(2000)
+        page.screenshot(path=output_path, full_page=True)
+        browser.close()
+
+    return output_path
+
+
+class CloudflareBlockedError(Exception):
+    pass
+
+
 def take_all_screenshots(config_path: str | None = None) -> list[dict]:
-    """Screenshot every URL in config. Returns list of {url, label, path, error}."""
+    """Screenshot every URL in config. Falls back to /report if Cloudflare blocks."""
     urls = list_urls(config_path)
     screenshots_dir = get_screenshots_dir(config_path)
 
@@ -87,6 +138,8 @@ def take_all_screenshots(config_path: str | None = None) -> list[dict]:
     date_str = now.strftime("%Y-%m-%d_%H%M%S")
 
     results = []
+    used_report_fallback = False
+
     for i, entry in enumerate(urls):
         url = entry["url"]
         label = entry.get("label", url)
@@ -103,6 +156,16 @@ def take_all_screenshots(config_path: str | None = None) -> list[dict]:
                 "error": None,
             })
             print(f"  OK: {label}")
+        except CloudflareBlockedError:
+            print(f"  BLOCKED: {label} - Cloudflare detected, will use report fallback")
+            used_report_fallback = True
+            results.append({
+                "url": url,
+                "label": label,
+                "path": None,
+                "filename": None,
+                "error": "Cloudflare blocked - see report screenshot",
+            })
         except Exception as e:
             results.append({
                 "url": url,
@@ -112,6 +175,23 @@ def take_all_screenshots(config_path: str | None = None) -> list[dict]:
                 "error": str(e),
             })
             print(f"  FAIL: {label} - {e}")
+
+    # If any URL was blocked by Cloudflare, take a report screenshot as fallback
+    if used_report_fallback:
+        report_filename = f"report_{date_str}.png"
+        report_path = os.path.join(screenshots_dir, report_filename)
+        try:
+            _take_report_screenshot(report_path)
+            results.append({
+                "url": "/report",
+                "label": "Portfolio Report (fallback)",
+                "path": report_path,
+                "filename": report_filename,
+                "error": None,
+            })
+            print("  OK: Report fallback screenshot")
+        except Exception as e:
+            print(f"  FAIL: Report fallback - {e}")
 
     return results
 
