@@ -17,7 +17,6 @@ def get_screenshots_dir(config_path: str | None = None) -> str:
 
 
 def _clear_old_screenshots(screenshots_dir: str) -> None:
-    """Delete all previous screenshot PNGs."""
     for f in os.listdir(screenshots_dir):
         if f.endswith(".png"):
             try:
@@ -27,15 +26,15 @@ def _clear_old_screenshots(screenshots_dir: str) -> None:
 
 
 def take_screenshot(url: str, output_path: str) -> str:
-    """Take a full-page screenshot of a URL."""
+    """Take a screenshot of a URL, handling Cloudflare challenges."""
     from playwright.sync_api import sync_playwright
 
-    # Try stealth if available, otherwise basic playwright
     try:
         from playwright_stealth import stealth_sync
         has_stealth = True
     except ImportError:
         has_stealth = False
+        print("[Screenshots] playwright-stealth not installed, using basic mode")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -64,17 +63,29 @@ def take_screenshot(url: str, output_path: str) -> str:
         if has_stealth:
             stealth_sync(page)
 
+        print(f"[Screenshots] Loading {url}")
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
+        # Wait for Cloudflare challenge to auto-resolve (up to 20s)
+        for i in range(20):
+            title = page.title().lower()
+            if "just a moment" not in title and "attention" not in title:
+                break
+            if i == 0:
+                print("[Screenshots] Cloudflare challenge detected, waiting...")
+            page.wait_for_timeout(1000)
+
+        # Wait for real page to finish loading
         try:
             page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
             pass
 
-        # Wait for page to render
+        # Let JS render
         page.wait_for_timeout(5000)
 
         page.screenshot(path=output_path, full_page=True)
+        print(f"[Screenshots] Saved {output_path}")
         browser.close()
 
     return output_path
@@ -123,7 +134,6 @@ def take_all_screenshots(config_path: str | None = None) -> list[dict]:
 
 
 def list_saved_screenshots(config_path: str | None = None) -> list[str]:
-    """List all screenshot files sorted by name (newest last)."""
     d = get_screenshots_dir(config_path)
     files = [f for f in sorted(os.listdir(d)) if f.endswith(".png")]
     return files
