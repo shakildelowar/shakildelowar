@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
-ALLOWED_DOMAINS = ("debank.com", "jup.ag", "zerion.io", "app.zerion.io", "solscan.io")
+ALLOWED_DOMAINS = ("debank.com", "jup.ag", "zerion.io", "app.zerion.io", "solscan.io", "solana.fm")
 
 # Base58 Solana address pattern (32-44 chars, no 0/O/I/l)
 _SOL_ADDR_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
@@ -38,9 +38,9 @@ def _normalize_input(raw: str) -> str:
     """Accept a raw address or full URL. Returns a valid URL."""
     raw = raw.strip()
 
-    # Raw Solana address -> Solscan URL
+    # Raw Solana address -> SolanaFM (no Cloudflare, unlike Solscan)
     if _SOL_ADDR_RE.match(raw):
-        return f"https://solscan.io/account/{raw}"
+        return f"https://solana.fm/address/{raw}"
 
     # Raw EVM address -> DeBank URL
     if _EVM_ADDR_RE.match(raw):
@@ -56,7 +56,7 @@ def _normalize_input(raw: str) -> str:
     if not any(host.endswith(d) for d in ALLOWED_DOMAINS):
         raise ValueError(
             f"Enter a Solana address, EVM address, or URL from "
-            f"DeBank/Jupiter/Zerion/Solscan. Got: {host}"
+            f"DeBank/Jupiter/Zerion/Solscan/SolanaFM. Got: {host}"
         )
     return raw
 

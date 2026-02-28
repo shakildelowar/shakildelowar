@@ -153,9 +153,17 @@ def extract_address_from_url(url: str) -> tuple[str, str]:
     elif "solscan.io" in host:
         # Solscan URL: https://solscan.io/account/{address}
         parts = [p for p in path.split("/") if p]
-        # Find the part after "account"
         if "account" in parts:
             idx = parts.index("account")
+            address = parts[idx + 1] if idx + 1 < len(parts) else ""
+        else:
+            address = parts[-1] if parts else ""
+        return address, "solana"
+    elif "solana.fm" in host:
+        # SolanaFM URL: https://solana.fm/address/{address}
+        parts = [p for p in path.split("/") if p]
+        if "address" in parts:
+            idx = parts.index("address")
             address = parts[idx + 1] if idx + 1 < len(parts) else ""
         else:
             address = parts[-1] if parts else ""

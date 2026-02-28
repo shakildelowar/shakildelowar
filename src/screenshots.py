@@ -26,7 +26,7 @@ def _clear_old_screenshots(screenshots_dir: str) -> None:
 
 
 def take_screenshot(url: str, output_path: str) -> str:
-    """Take a screenshot of a URL, handling Cloudflare challenges."""
+    """Take a screenshot of a URL, waiting for SPA content to render."""
     from playwright.sync_api import sync_playwright
 
     try:
@@ -34,7 +34,6 @@ def take_screenshot(url: str, output_path: str) -> str:
         has_stealth = True
     except ImportError:
         has_stealth = False
-        print("[Screenshots] playwright-stealth not installed, using basic mode")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -75,13 +74,28 @@ def take_screenshot(url: str, output_path: str) -> str:
                 print("[Screenshots] Cloudflare challenge detected, waiting...")
             page.wait_for_timeout(1000)
 
-        # Wait for real page to finish loading
+        # Wait for network to settle (SPA data fetches)
         try:
             page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
             pass
 
-        # Let JS render
+        # For SPAs (Zerion, SolanaFM), wait for real content to appear
+        # Try common selectors that indicate data has loaded
+        for selector in [
+            "[data-testid]",          # React test IDs (Zerion)
+            "table",                  # Data tables (SolanaFM, explorers)
+            "[class*='portfolio']",   # Portfolio sections
+            "[class*='balance']",     # Balance displays
+            "[class*='token']",       # Token lists
+        ]:
+            try:
+                page.wait_for_selector(selector, timeout=8000)
+                break
+            except Exception:
+                continue
+
+        # Final render wait
         page.wait_for_timeout(5000)
 
         page.screenshot(path=output_path, full_page=True)
