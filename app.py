@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from src.config import add_url, get_email_config, list_urls, remove_url, set_email_config
 from src.screenshots import get_screenshots_dir, list_saved_screenshots, take_all_screenshots
-from src.balances import fetch_all_balances, fetch_balance_for_url
+from src.balances import fetch_all_balances
 from src.emailer import send_screenshots_email
 
 app = Flask(__name__)
@@ -75,15 +75,6 @@ def get_balances():
     urls = list_urls()
     results = fetch_all_balances(urls)
     return jsonify(results)
-
-
-@app.route("/report")
-def balance_report():
-    """Render a visual balance report page (also used for screenshots)."""
-    urls = list_urls()
-    wallets = fetch_all_balances(urls)
-    now = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
-    return render_template("report.html", wallets=wallets, timestamp=now)
 
 
 # --- Screenshots ---

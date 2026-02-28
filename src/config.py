@@ -2,11 +2,17 @@
 
 import json
 import os
+import re
 from urllib.parse import urlparse
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
 ALLOWED_DOMAINS = ("debank.com", "jup.ag", "zerion.io", "app.zerion.io", "solscan.io")
+
+# Base58 Solana address pattern (32-44 chars, no 0/O/I/l)
+_SOL_ADDR_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+# EVM address pattern
+_EVM_ADDR_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 
 def _config_path(path: str | None) -> str:
@@ -28,25 +34,36 @@ def save_config(config: dict, path: str | None = None) -> None:
         f.write("\n")
 
 
-def _validate_url(url: str) -> str:
-    """Validate that the URL is a DeBank or Jupiter portfolio link."""
-    url = url.strip()
-    if not url.startswith("http"):
-        url = "https://" + url
+def _normalize_input(raw: str) -> str:
+    """Accept a raw address or full URL. Returns a valid URL."""
+    raw = raw.strip()
 
-    parsed = urlparse(url)
+    # Raw Solana address -> Solscan URL
+    if _SOL_ADDR_RE.match(raw):
+        return f"https://solscan.io/account/{raw}"
+
+    # Raw EVM address -> DeBank URL
+    if _EVM_ADDR_RE.match(raw):
+        return f"https://debank.com/profile/{raw}"
+
+    # Already a URL
+    if not raw.startswith("http"):
+        raw = "https://" + raw
+
+    parsed = urlparse(raw)
     host = parsed.hostname or ""
 
     if not any(host.endswith(d) for d in ALLOWED_DOMAINS):
         raise ValueError(
-            f"URL must be from DeBank, Jupiter, Zerion, or Solscan. Got: {host}"
+            f"Enter a Solana address, EVM address, or URL from "
+            f"DeBank/Jupiter/Zerion/Solscan. Got: {host}"
         )
-    return url
+    return raw
 
 
 def add_url(url: str, label: str = "", path: str | None = None) -> str:
     """Add a URL to the config. Returns the cleaned URL."""
-    url = _validate_url(url)
+    url = _normalize_input(url)
     config = load_config(path)
 
     for existing in config["urls"]:

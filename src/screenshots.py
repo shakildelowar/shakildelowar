@@ -1,4 +1,4 @@
-"""Take screenshots of portfolio URLs using Playwright with stealth."""
+"""Take screenshots of portfolio URLs using Playwright."""
 
 import os
 from datetime import datetime, timezone
@@ -27,9 +27,15 @@ def _clear_old_screenshots(screenshots_dir: str) -> None:
 
 
 def take_screenshot(url: str, output_path: str) -> str:
-    """Take a full-page screenshot with stealth to bypass Cloudflare."""
+    """Take a full-page screenshot of a URL."""
     from playwright.sync_api import sync_playwright
-    from playwright_stealth import stealth_sync
+
+    # Try stealth if available, otherwise basic playwright
+    try:
+        from playwright_stealth import stealth_sync
+        has_stealth = True
+    except ImportError:
+        has_stealth = False
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -39,8 +45,6 @@ def take_screenshot(url: str, output_path: str) -> str:
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--disable-web-security",
             ],
         )
         context = browser.new_context(
@@ -57,29 +61,17 @@ def take_screenshot(url: str, output_path: str) -> str:
         )
         page = context.new_page()
 
-        # Apply full stealth patches (webdriver, plugins, WebGL, chrome runtime, etc.)
-        stealth_sync(page)
+        if has_stealth:
+            stealth_sync(page)
 
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
 
-        # Wait for network to settle
         try:
             page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
             pass
 
-        # Wait for loading spinners to disappear
-        for selector in [
-            "[class*='spinner']",
-            "[class*='loading']",
-            "[class*='skeleton']",
-        ]:
-            try:
-                page.wait_for_selector(selector, state="hidden", timeout=15000)
-            except Exception:
-                pass
-
-        # Final wait for renders
+        # Wait for page to render
         page.wait_for_timeout(5000)
 
         page.screenshot(path=output_path, full_page=True)
@@ -91,6 +83,9 @@ def take_screenshot(url: str, output_path: str) -> str:
 def take_all_screenshots(config_path: str | None = None) -> list[dict]:
     """Screenshot every URL in config."""
     urls = list_urls(config_path)
+    if not urls:
+        return []
+
     screenshots_dir = get_screenshots_dir(config_path)
     _clear_old_screenshots(screenshots_dir)
 

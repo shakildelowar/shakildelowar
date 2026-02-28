@@ -433,7 +433,7 @@
       <div class="card">
         <h2>Add URL</h2>
         <form class="add-form" id="addForm">
-          <input type="text" name="url" placeholder="DeBank, Jupiter, Zerion, or Solscan URL" required>
+          <input type="text" name="url" placeholder="Solana address, EVM address, or URL" required>
           <input type="text" name="label" placeholder="Label (optional)">
           <button type="submit" class="btn btn-primary" id="addBtn">Add</button>
         </form>
@@ -454,7 +454,6 @@
     <div class="tab-content" id="tab-balances">
       <div class="actions">
         <button class="btn btn-primary" onclick="fetchBalances()" id="balanceBtn">Fetch Balances</button>
-        <a class="btn btn-secondary" href="/report" target="_blank" style="text-decoration:none;display:inline-block;">View Report</a>
       </div>
       <div id="balancesList">
         <div class="empty-state">Click "Fetch Balances" to load wallet data.</div>
