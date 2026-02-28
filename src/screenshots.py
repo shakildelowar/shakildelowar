@@ -1,9 +1,9 @@
-"""Take a screenshot of the portfolio report page using Playwright."""
+"""Take screenshots of portfolio URLs using Playwright with stealth."""
 
 import os
 from datetime import datetime, timezone
 
-from .config import load_config
+from .config import load_config, list_urls
 
 
 def get_screenshots_dir(config_path: str | None = None) -> str:
@@ -26,54 +26,105 @@ def _clear_old_screenshots(screenshots_dir: str) -> None:
                 pass
 
 
-def take_all_screenshots(config_path: str | None = None) -> list[dict]:
-    """Screenshot the /report page with live wallet balances."""
+def take_screenshot(url: str, output_path: str) -> str:
+    """Take a full-page screenshot with stealth to bypass Cloudflare."""
     from playwright.sync_api import sync_playwright
+    from playwright_stealth import stealth_sync
 
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-web-security",
+            ],
+        )
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 900},
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            java_script_enabled=True,
+            locale="en-US",
+            timezone_id="America/New_York",
+            color_scheme="dark",
+        )
+        page = context.new_page()
+
+        # Apply full stealth patches (webdriver, plugins, WebGL, chrome runtime, etc.)
+        stealth_sync(page)
+
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+
+        # Wait for network to settle
+        try:
+            page.wait_for_load_state("networkidle", timeout=30000)
+        except Exception:
+            pass
+
+        # Wait for loading spinners to disappear
+        for selector in [
+            "[class*='spinner']",
+            "[class*='loading']",
+            "[class*='skeleton']",
+        ]:
+            try:
+                page.wait_for_selector(selector, state="hidden", timeout=15000)
+            except Exception:
+                pass
+
+        # Final wait for renders
+        page.wait_for_timeout(5000)
+
+        page.screenshot(path=output_path, full_page=True)
+        browser.close()
+
+    return output_path
+
+
+def take_all_screenshots(config_path: str | None = None) -> list[dict]:
+    """Screenshot every URL in config."""
+    urls = list_urls(config_path)
     screenshots_dir = get_screenshots_dir(config_path)
     _clear_old_screenshots(screenshots_dir)
 
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d_%H%M%S")
-    filename = f"report_{date_str}.png"
-    output_path = os.path.join(screenshots_dir, filename)
 
-    port = int(os.environ.get("PORT", 5000))
-    report_url = f"http://localhost:{port}/report"
+    results = []
+    for i, entry in enumerate(urls):
+        url = entry["url"]
+        label = entry.get("label", url)
+        filename = f"shot_{i:02d}_{date_str}.png"
+        output_path = os.path.join(screenshots_dir, filename)
 
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-            )
-            context = browser.new_context(
-                viewport={"width": 1440, "height": 900},
-                java_script_enabled=True,
-            )
-            page = context.new_page()
-            page.goto(report_url, wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(2000)
-            page.screenshot(path=output_path, full_page=True)
-            browser.close()
+        try:
+            take_screenshot(url, output_path)
+            results.append({
+                "url": url,
+                "label": label,
+                "path": output_path,
+                "filename": filename,
+                "error": None,
+            })
+            print(f"  OK: {label}")
+        except Exception as e:
+            results.append({
+                "url": url,
+                "label": label,
+                "path": None,
+                "filename": None,
+                "error": str(e),
+            })
+            print(f"  FAIL: {label} - {e}")
 
-        print(f"  OK: Portfolio report screenshot")
-        return [{
-            "url": "/report",
-            "label": "Portfolio Report",
-            "path": output_path,
-            "filename": filename,
-            "error": None,
-        }]
-    except Exception as e:
-        print(f"  FAIL: Report screenshot - {e}")
-        return [{
-            "url": "/report",
-            "label": "Portfolio Report",
-            "path": None,
-            "filename": None,
-            "error": str(e),
-        }]
+    return results
 
 
 def list_saved_screenshots(config_path: str | None = None) -> list[str]:
