@@ -1,6 +1,5 @@
-"""End-of-month scheduler: screenshots + balance report email."""
+"""Monthly scheduler: screenshots + balance report email on the 29th at 5 UTC."""
 
-import calendar
 import time
 from datetime import datetime, timezone
 
@@ -8,9 +7,8 @@ from .screenshots import take_all_screenshots
 from .emailer import send_screenshots_email
 
 
-def is_last_day_of_month(dt: datetime) -> bool:
-    last_day = calendar.monthrange(dt.year, dt.month)[1]
-    return dt.day == last_day
+REPORT_DAY = 29
+REPORT_HOUR = 5
 
 
 def run_monthly_job(config_path: str | None = None) -> None:
@@ -22,8 +20,6 @@ def run_monthly_job(config_path: str | None = None) -> None:
     successful = [r for r in results if r.get("path")]
     print(f"Screenshots captured: {len(successful)}/{len(results)}")
 
-    # Send email with screenshots + balance report even if screenshots fail
-    # (balance data is fetched live by the emailer)
     print("Sending email with screenshots + balance report...")
     try:
         send_screenshots_email(results, config_path, include_balances=True)
@@ -33,9 +29,9 @@ def run_monthly_job(config_path: str | None = None) -> None:
 
 
 def run_scheduler(config_path: str | None = None) -> None:
-    """Run continuously. Screenshots + email at ~23:50 UTC on last day of month."""
+    """Run continuously. Screenshots + email at 5:00 UTC on the 29th of each month."""
     print("Monthly screenshot scheduler started.")
-    print("Will capture and email at ~23:50 UTC on the last day of each month.")
+    print(f"Will capture and email at {REPORT_HOUR:02d}:00 UTC on the 29th of each month.")
     print("Press Ctrl+C to stop.\n")
 
     last_run_month = None
@@ -44,15 +40,15 @@ def run_scheduler(config_path: str | None = None) -> None:
         now = datetime.now(timezone.utc)
 
         if (
-            is_last_day_of_month(now)
-            and now.hour == 23
-            and now.minute >= 50
+            now.day == REPORT_DAY
+            and now.hour == REPORT_HOUR
+            and now.minute < 10
             and last_run_month != (now.year, now.month)
         ):
             try:
                 run_monthly_job(config_path)
                 last_run_month = (now.year, now.month)
-                print(f"Next run: end of next month\n")
+                print(f"Next run: 29th of next month at {REPORT_HOUR:02d}:00 UTC\n")
             except Exception as e:
                 print(f"Error: {e}")
 
