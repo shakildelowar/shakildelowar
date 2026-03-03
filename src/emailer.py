@@ -128,7 +128,7 @@ def _get_resend_key() -> str:
 
 def _get_sender() -> str:
     """Get sender email - uses custom domain if RESEND_FROM is set, otherwise Resend default."""
-    return os.environ.get("RESEND_FROM", "Portfolio Tracker <onboarding@resend.dev>").strip()
+    return os.environ.get("RESEND_FROM", "Portfolio Tracker <noreply@wyntr.online>").strip()
 
 
 def _use_smtp(email_cfg: dict) -> bool:
