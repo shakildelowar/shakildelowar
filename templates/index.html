@@ -476,17 +476,34 @@
       <div class="card">
         <h2>Email Settings</h2>
         <p style="color:#5e6673;font-size:0.8rem;margin-bottom:18px;">
-          Set the email address where monthly reports will be sent.
-          Email is powered by Resend (API key set in Railway env vars).
+          Set the email where monthly reports are sent.<br>
+          <strong>Option A:</strong> Resend API (set RESEND_API_KEY + RESEND_FROM in Railway env vars, verify your domain on Resend).<br>
+          <strong>Option B:</strong> Gmail SMTP (fill in SMTP fields below - sends to anyone, no domain needed).
         </p>
         <form class="settings-form" id="emailForm">
           <div>
             <label>Recipient Email</label>
-            <input type="email" name="recipient" placeholder="you@example.com" required>
+            <input type="email" name="recipient" placeholder="recipient@example.com" required>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+
+          <div style="margin-top:18px;padding-top:14px;border-top:1px solid #30363d;">
+            <p style="color:#8b949e;font-size:0.75rem;margin:0 0 10px 0;">
+              Gmail SMTP (optional - leave blank to use Resend instead)
+            </p>
+            <div>
+              <label>Gmail Address</label>
+              <input type="email" name="smtp_user" placeholder="you@gmail.com">
+            </div>
+            <div>
+              <label>App Password</label>
+              <input type="password" name="smtp_password" placeholder="xxxx xxxx xxxx xxxx" autocomplete="off">
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center;margin-top:14px;">
             <button type="submit" class="btn btn-primary">Save</button>
             <button type="button" class="btn btn-secondary" id="testEmailBtn" onclick="testEmail()">Test Email</button>
+            <span id="emailMethod" style="color:#8b949e;font-size:0.75rem;"></span>
           </div>
         </form>
       </div>
@@ -691,6 +708,14 @@
         const data = await res.json();
         const form = document.getElementById('emailForm');
         form.recipient.value = data.recipient || '';
+        form.smtp_user.value = data.smtp_user || '';
+        form.smtp_password.value = data.smtp_password || '';
+        const method = document.getElementById('emailMethod');
+        if (data.smtp_user && data.smtp_password) {
+          method.textContent = 'Using: Gmail SMTP';
+        } else {
+          method.textContent = 'Using: Resend API';
+        }
       } catch (e) { /* */ }
     }
 
@@ -703,9 +728,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient: form.recipient.value.trim(),
+            smtp_user: form.smtp_user.value.trim(),
+            smtp_password: form.smtp_password.value.trim(),
           }),
         });
-        if (res.ok) toast('Settings saved');
+        if (res.ok) {
+          toast('Settings saved');
+          loadEmailSettings();
+        }
         else toast('Failed to save', 'error');
       } catch (err) { toast('Network error', 'error'); }
     });

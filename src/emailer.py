@@ -1,10 +1,13 @@
-"""Send portfolio report emails via Resend API."""
+"""Send portfolio report emails via Resend API or Gmail SMTP."""
 
 import base64
 import os
+import smtplib
 from datetime import datetime, timezone
-
-import resend
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email import encoders
 
 from .config import get_email_config, list_urls
 from .balances import fetch_all_balances
@@ -128,14 +131,97 @@ def _get_sender() -> str:
     return os.environ.get("RESEND_FROM", "Portfolio Tracker <onboarding@resend.dev>").strip()
 
 
+def _use_smtp(email_cfg: dict) -> bool:
+    """Check if SMTP credentials are configured (use SMTP instead of Resend)."""
+    return bool(email_cfg.get("smtp_user")) and bool(email_cfg.get("smtp_password"))
+
+
+def _send_via_smtp(
+    email_cfg: dict,
+    recipient: str,
+    subject: str,
+    html_body: str,
+    screenshot_results: list[dict],
+) -> None:
+    """Send email via Gmail SMTP. Works with any recipient - no custom domain needed."""
+    smtp_host = email_cfg.get("smtp_host", "smtp.gmail.com")
+    smtp_port = int(email_cfg.get("smtp_port", 587))
+    smtp_user = email_cfg["smtp_user"]
+    smtp_password = email_cfg["smtp_password"]
+
+    msg = MIMEMultipart()
+    msg["From"] = f"Portfolio Tracker <{smtp_user}>"
+    msg["To"] = recipient
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html_body, "html"))
+
+    # Attach screenshots
+    for result in screenshot_results:
+        filepath = result.get("path")
+        if filepath and os.path.exists(filepath):
+            filename = result.get("filename") or os.path.basename(filepath)
+            with open(filepath, "rb") as f:
+                part = MIMEBase("image", "png")
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header("Content-Disposition", f"attachment; filename={filename}")
+                msg.attach(part)
+
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+
+    print(f"Email sent to {recipient} via SMTP ({smtp_host}) with screenshots + balance report.")
+
+
+def _send_via_resend(
+    recipient: str,
+    subject: str,
+    html_body: str,
+    screenshot_results: list[dict],
+) -> None:
+    """Send email via Resend API."""
+    import resend
+
+    resend.api_key = _get_resend_key()
+
+    attachments = []
+    for result in screenshot_results:
+        filepath = result.get("path")
+        if filepath and os.path.exists(filepath):
+            filename = result.get("filename") or os.path.basename(filepath)
+            with open(filepath, "rb") as f:
+                img_data = f.read()
+            attachments.append({
+                "filename": filename,
+                "content": list(img_data),
+            })
+
+    params = {
+        "from": _get_sender(),
+        "to": [recipient],
+        "subject": subject,
+        "html": html_body,
+    }
+    if attachments:
+        params["attachments"] = attachments
+
+    resend.Emails.send(params)
+    print(f"Email sent to {recipient} via Resend with screenshots + balance report.")
+
+
 def send_screenshots_email(
     screenshot_results: list[dict],
     config_path: str | None = None,
     include_balances: bool = True,
 ) -> None:
-    """Email screenshots as attachments with balance report in body via Resend."""
-    resend.api_key = _get_resend_key()
+    """Email screenshots as attachments with balance report in body.
 
+    Auto-detects send method:
+    - If smtp_user + smtp_password are set in config -> Gmail SMTP (sends to anyone)
+    - Otherwise -> Resend API (needs RESEND_API_KEY env var)
+    """
     email_cfg = get_email_config(config_path)
     recipient = email_cfg.get("recipient", "")
     if not recipient:
@@ -144,6 +230,7 @@ def send_screenshots_email(
     now = datetime.now(timezone.utc)
     month_str = now.strftime("%B %Y")
     timestamp = now.strftime("%B %d, %Y at %H:%M UTC")
+    subject = f"Portfolio Report - {month_str}"
 
     successful = [r for r in screenshot_results if r.get("path")]
     failed = [r for r in screenshot_results if r.get("error")]
@@ -172,27 +259,7 @@ def send_screenshots_email(
       </p>
     </div></body></html>"""
 
-    # Build attachments
-    attachments = []
-    for result in successful:
-        filepath = result.get("path")
-        if filepath and os.path.exists(filepath):
-            filename = result.get("filename") or os.path.basename(filepath)
-            with open(filepath, "rb") as f:
-                img_data = f.read()
-            attachments.append({
-                "filename": filename,
-                "content": list(img_data),
-            })
-
-    params = {
-        "from": _get_sender(),
-        "to": [recipient],
-        "subject": f"Portfolio Report - {month_str}",
-        "html": html_body,
-    }
-    if attachments:
-        params["attachments"] = attachments
-
-    resend.Emails.send(params)
-    print(f"Email sent to {recipient} via Resend with {len(successful)} screenshot(s) + balance report.")
+    if _use_smtp(email_cfg):
+        _send_via_smtp(email_cfg, recipient, subject, html_body, successful)
+    else:
+        _send_via_resend(recipient, subject, html_body, successful)

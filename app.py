@@ -124,7 +124,13 @@ def serve_screenshot(filename):
 @app.route("/api/email-settings", methods=["GET"])
 def get_email_settings():
     cfg = get_email_config()
-    return jsonify({"recipient": cfg.get("recipient", "")})
+    return jsonify({
+        "recipient": cfg.get("recipient", ""),
+        "smtp_user": cfg.get("smtp_user", ""),
+        "smtp_password": cfg.get("smtp_password", ""),
+        "smtp_host": cfg.get("smtp_host", "smtp.gmail.com"),
+        "smtp_port": cfg.get("smtp_port", 587),
+    })
 
 
 @app.route("/api/email-settings", methods=["POST"])
@@ -135,8 +141,10 @@ def post_email_settings():
     try:
         set_email_config(
             recipient=data.get("recipient", ""),
-            smtp_user="",
-            smtp_password="",
+            smtp_user=data.get("smtp_user", ""),
+            smtp_password=data.get("smtp_password", ""),
+            smtp_host=data.get("smtp_host", "smtp.gmail.com"),
+            smtp_port=int(data.get("smtp_port", 587)),
         )
         return jsonify({"ok": True})
     except Exception as e:
@@ -145,9 +153,8 @@ def post_email_settings():
 
 @app.route("/api/test-email", methods=["POST"])
 def test_email():
-    """Send a quick test email via Resend to verify settings."""
-    import resend as _resend
-    from src.emailer import _get_resend_key, _get_sender
+    """Send a quick test email via SMTP or Resend to verify settings."""
+    from src.emailer import _use_smtp, _get_resend_key, _get_sender
 
     cfg = get_email_config()
     recipient = cfg.get("recipient", "")
@@ -155,15 +162,39 @@ def test_email():
     if not recipient:
         return jsonify({"error": "Set a recipient email first."}), 400
 
+    test_html = "<p>This is a test email from your Portfolio Tracker. If you see this, email is working!</p>"
+    subject = "Portfolio Tracker - Test Email"
+
     try:
-        _resend.api_key = _get_resend_key()
-        _resend.Emails.send({
-            "from": _get_sender(),
-            "to": [recipient],
-            "subject": "Portfolio Tracker - Test Email",
-            "html": "<p>This is a test email from your Portfolio Tracker. If you see this, email is working!</p>",
-        })
-        return jsonify({"ok": True, "message": f"Test email sent to {recipient}!"})
+        if _use_smtp(cfg):
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            msg = MIMEMultipart()
+            msg["From"] = f"Portfolio Tracker <{cfg['smtp_user']}>"
+            msg["To"] = recipient
+            msg["Subject"] = subject
+            msg.attach(MIMEText(test_html, "html"))
+
+            with smtplib.SMTP(cfg.get("smtp_host", "smtp.gmail.com"), int(cfg.get("smtp_port", 587))) as server:
+                server.starttls()
+                server.login(cfg["smtp_user"], cfg["smtp_password"])
+                server.send_message(msg)
+
+            method = "Gmail SMTP"
+        else:
+            import resend as _resend
+            _resend.api_key = _get_resend_key()
+            _resend.Emails.send({
+                "from": _get_sender(),
+                "to": [recipient],
+                "subject": subject,
+                "html": test_html,
+            })
+            method = "Resend"
+
+        return jsonify({"ok": True, "message": f"Test email sent to {recipient} via {method}!"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
